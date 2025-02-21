@@ -14,13 +14,13 @@ import concurrent.futures
 # --------------------------
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
-ARCHIVO_LISTADOS = "listings.txt"  # Archivo de historial
+
+# ======== RUTAS REMOTAS (en tu servidor) ========
+API_HISTORIAL = "https://ckrapps.tech/api_historial.php"  # Ajusta si cambia la ruta
 
 # ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
 BOT_TOKEN = os.getenv("BOT_TOKEN")  # Se toma del entorno (sin exponerlo)
-CHAT_ID = os.getenv("CHAT_ID", "-1002252436524") 
-# Si deseas también guardar el Chat ID en secreto, define una secret "CHAT_ID".
-# Si no, puedes dejarlo fijo en el script.
+CHAT_ID = os.getenv("CHAT_ID", "-1002252436524")
 
 # Lista de pueblos deseados
 PUEBLOS = [
@@ -60,9 +60,43 @@ class TLSAdapter(HTTPAdapter):
             **pool_kwargs
         )
 
-# --------------------------
-# Función para construir la URL de búsqueda para un pueblo y un offset dado
-# --------------------------
+# ---------------------------------------------------------
+# FUNCIONES PARA MANEJAR EL HISTORIAL EN TU SERVIDOR PHP
+# ---------------------------------------------------------
+def cargar_historial_remoto():
+    """
+    Hace un GET a https://ckrapps.tech/api_historial.php
+    Debe retornar un JSON con {"enlaces": [...]}.
+    Lo convertimos a un set() para manejar duplicados en Python.
+    """
+    try:
+        resp = requests.get(API_HISTORIAL, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        enlaces = data.get("enlaces", [])
+        print(f"Debug: Se cargaron {len(enlaces)} enlaces del historial remoto.")
+        return set(enlaces)
+    except Exception as e:
+        print(f"❌ Error al cargar historial remoto: {str(e)}")
+        return set()
+
+def guardar_historial_remoto(historial_set):
+    """
+    Hace un POST a https://ckrapps.tech/api_historial.php con {"enlaces": [...]}
+    sobrescribiendo el historial remoto.
+    """
+    data = {"enlaces": list(historial_set)}
+    try:
+        resp = requests.post(API_HISTORIAL, json=data, timeout=30)
+        resp.raise_for_status()
+        print("✅ Historial remoto actualizado correctamente.")
+        print("Debug:", resp.text)
+    except Exception as e:
+        print(f"❌ Error al guardar historial remoto: {str(e)}")
+
+# ---------------------------------------------------------
+# Resto de funciones para scraping
+# ---------------------------------------------------------
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDREListing.asp"
     params = {
@@ -82,9 +116,6 @@ def construir_url_busqueda(pueblo, offset=0):
         params['offset'] = str(offset)
     return f"{base}?{urllib.parse.urlencode(params)}"
 
-# --------------------------
-# Función para extraer listados de una página (anuncios)
-# --------------------------
 def obtener_listados_busqueda(url, pueblo):
     try:
         session = requests.Session()
@@ -117,9 +148,6 @@ def obtener_listados_busqueda(url, pueblo):
                 })
     return resultados
 
-# --------------------------
-# Función para iterar la paginación para un pueblo
-# --------------------------
 def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     todos_listados = []
     for offset in range(0, max_offset + 1, step):
@@ -128,17 +156,12 @@ def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
         listados = obtener_listados_busqueda(url_busqueda, pueblo)
         print(f"   ✅ Encontradas {len(listados)} propiedades en {pueblo} (offset {offset})")
         if not listados:
-            # Si no hay resultados en esta página, paramos.
             break
         todos_listados.extend(listados)
-        # Si llegan menos resultados que 'step', asumimos que es la última página.
         if len(listados) < step:
             break
     return todos_listados
 
-# --------------------------
-# Función para extraer detalles de cada propiedad
-# --------------------------
 def extraer_detalles(url):
     detalles = {'telefono': None, 'cuartos': None, 'banos': None}
     try:
@@ -148,7 +171,6 @@ def extraer_detalles(url):
         response.raise_for_status()
         contenido = response.text
 
-        # Extraer data con los patrones
         match_cuartos = PATRONES['cuartos'].search(contenido)
         if match_cuartos:
             detalles['cuartos'] = match_cuartos.group(1)
@@ -165,34 +187,9 @@ def extraer_detalles(url):
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
 
-# --------------------------
-# Manejo de historial (para evitar duplicados)
-# --------------------------
-def cargar_historial():
-    """Lee listings.txt y retorna un set con los links ya procesados."""
-    if not os.path.exists(ARCHIVO_LISTADOS):
-        print(f"Debug: {ARCHIVO_LISTADOS} no existe, creando un set vacío.")
-        return set()
-    with open(ARCHIVO_LISTADOS, 'r', encoding='utf-8') as f:
-        lines = {linea.strip() for linea in f if linea.strip()}
-    print(f"Debug: Se cargaron {len(lines)} enlaces del historial.")
-    return lines
-
-def guardar_historial(historial_set):
-    """Guarda el historial en listings.txt (uno por línea)."""
-    print(f"Debug: Guardando {len(historial_set)} enlaces en {ARCHIVO_LISTADOS}.")
-    with open(ARCHIVO_LISTADOS, 'w', encoding='utf-8') as f:
-        for link in sorted(historial_set):
-            f.write(link + '\n')
-    # Comprobación rápida
-    print("Debug: Contenido final de listings.txt:")
-    with open(ARCHIVO_LISTADOS, 'r', encoding='utf-8') as f:
-        data = f.read()
-        print(data)
-
-# --------------------------
+# ---------------------------------------------------------
 # Dividir mensaje en caso de exceder 4096 caracteres (Telegram)
-# --------------------------
+# ---------------------------------------------------------
 def dividir_mensaje_en_partes(mensaje, limite=4096):
     partes = []
     while len(mensaje) > limite:
@@ -205,11 +202,7 @@ def dividir_mensaje_en_partes(mensaje, limite=4096):
         partes.append(mensaje)
     return partes
 
-# --------------------------
-# Enviar notificaciones a Telegram
-# --------------------------
 def enviar_telegram(nuevos):
-    # Si no se definió BOT_TOKEN, termina
     if not BOT_TOKEN:
         print("❌ BOT_TOKEN no está definido. No se puede enviar a Telegram.")
         return
@@ -227,7 +220,6 @@ def enviar_telegram(nuevos):
             mensaje_base += f"📞 Tel: {prop['telefono']}\n"
         mensaje_base += "\n"
 
-    # Dividir y enviar en partes si excede 4096 caracteres
     partes_mensaje = dividir_mensaje_en_partes(mensaje_base, 4096)
     for idx, parte in enumerate(partes_mensaje, 1):
         respuesta = requests.post(
@@ -244,16 +236,17 @@ def enviar_telegram(nuevos):
         else:
             print(f"❌ Error Telegram: {respuesta.text}")
 
-# --------------------------
-# Función principal
-# --------------------------
+# ---------------------------------------------------------
+# Función principal (ya sin listings.txt local)
+# ---------------------------------------------------------
 def main():
-    # Cargar el historial existente
-    historial = cargar_historial()
-    print(f"Debug: Antes de procesar, historial tiene {len(historial)} enlaces.")
+    # 1. Cargar historial desde tu servidor PHP
+    historial = cargar_historial_remoto()
+    print(f"Debug: Antes de procesar, historial remoto tiene {len(historial)} enlaces.")
 
     nuevos = []
 
+    # 2. Recorrer los pueblos y obtener listados
     for pueblo in PUEBLOS:
         print(f"=== Buscando en {pueblo} ===")
         listados_pueblo = obtener_listados_por_pueblo(pueblo, max_offset=150, step=30)
@@ -263,9 +256,12 @@ def main():
         listados_filtrados = [lst for lst in listados_pueblo if lst['link'] not in historial]
         print(f"   -> Nuevos en {pueblo}: {len(listados_filtrados)}")
 
-        # Extraer detalles en paralelo (para mayor velocidad)
+        # 3. Extraer detalles en paralelo
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_listado = {executor.submit(extraer_detalles, lst['link']): lst for lst in listados_filtrados}
+            future_to_listado = {
+                executor.submit(extraer_detalles, lst['link']): lst
+                for lst in listados_filtrados
+            }
             for future in concurrent.futures.as_completed(future_to_listado):
                 listado = future_to_listado[future]
                 try:
@@ -275,19 +271,22 @@ def main():
                 except Exception as exc:
                     print(f"Error procesando {listado['link']}: {exc}")
 
+    # 4. Si hay propiedades nuevas, actualizar historial remoto y notificar
     if nuevos:
         print(f"🎉 Se encontraron {len(nuevos)} nuevas propiedades en total.")
         # Agregar los nuevos al historial
         for prop in nuevos:
             historial.add(prop['link'])
 
-        # Guardar historial actualizado
-        guardar_historial(historial)
+        # Guardar historial REMOTO
+        guardar_historial_remoto(historial)
 
         # Enviar notificaciones a Telegram
         enviar_telegram(nuevos)
     else:
         print("🤷 No se encontraron nuevas propiedades en ninguno de los pueblos.")
 
+# ---------------------------------------------------------
 if __name__ == "__main__":
     main()
+
