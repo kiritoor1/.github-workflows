@@ -169,7 +169,9 @@ def extraer_detalles(url):
         session.mount("https://", TLSAdapter())
         response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         response.raise_for_status()
-        contenido = response.text
+        # Usamos BeautifulSoup para obtener el texto limpio, como en la versión anterior
+        soup = BeautifulSoup(response.text, 'html.parser')
+        contenido = soup.get_text()
 
         match_cuartos = PATRONES['cuartos'].search(contenido)
         if match_cuartos:
@@ -182,7 +184,6 @@ def extraer_detalles(url):
         match_telefono = PATRONES['telefono'].search(contenido)
         if match_telefono:
             detalles['telefono'] = match_telefono.group()
-
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
@@ -289,4 +290,3 @@ def main():
 # ---------------------------------------------------------
 if __name__ == "__main__":
     main()
-
