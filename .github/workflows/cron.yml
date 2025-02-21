@@ -1,7 +1,7 @@
 name: Ejecutar Bot Clasificados
 
 on:
-  # Programado cada 1 minuto (ojo: GitHub suele demorar un poco más en la práctica)
+  # Ejecutar cada minuto (GitHub a veces retrasa un poco)
   schedule:
     - cron: "*/1 * * * *"
   workflow_dispatch:
@@ -9,19 +9,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    # Necesario para poder hacer 'git push' con GITHUB_TOKEN
+    # Permite hacer "push" con el GITHUB_TOKEN
     permissions:
       contents: write
 
     steps:
       - name: Checkout el repositorio
         uses: actions/checkout@v3
-        # Importante: NO usar persist-credentials: false,
-        # así el runner mantiene las credenciales para git push.
-        # (El valor por defecto es "true".)
+        # Esto hace que se baje tu código, incluyendo clasificados.py y listings.txt
 
-      - name: Configurar Git (para poder hacer commit)
+      - name: Configurar Git (para los commits que se generen)
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -36,14 +33,16 @@ jobs:
           pip install requests beautifulsoup4 urllib3
 
       - name: Ejecutar Bot
+        # Inyectamos la variable de entorno BOT_TOKEN con el secreto
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
           python clasificados.py
 
       - name: Guardar cambios (si listings.txt cambió)
         run: |
           git add listings.txt
-          # Haz commit solo si hubo cambios
+          # Si hay cambios, hace commit
           git diff --quiet --exit-code listings.txt || git commit -m "Update listings [skip ci]"
-          # Con el checkout por defecto (sin persist-credentials: false),
-          # ya tienes credenciales para hacer push.
+          # Sube el commit
           git push
