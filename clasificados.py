@@ -16,9 +16,11 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 ARCHIVO_LISTADOS = "listings.txt"  # Archivo de historial
 
-# Configuración de Telegram
-BOT_TOKEN = "7659368647:AAEpvdAnkC7D3OcHK0uEHwzui44id8L25vI"
-CHAT_ID = "-1002252436524"  # Para grupos, suele iniciar con -100...
+# ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # Se toma del entorno (sin exponerlo)
+CHAT_ID = os.getenv("CHAT_ID", "-1002252436524") 
+# Si deseas también guardar el Chat ID en secreto, define una secret "CHAT_ID".
+# Si no, puedes dejarlo fijo en el script.
 
 # Lista de pueblos deseados
 PUEBLOS = [
@@ -207,6 +209,11 @@ def dividir_mensaje_en_partes(mensaje, limite=4096):
 # Enviar notificaciones a Telegram
 # --------------------------
 def enviar_telegram(nuevos):
+    # Si no se definió BOT_TOKEN, termina
+    if not BOT_TOKEN:
+        print("❌ BOT_TOKEN no está definido. No se puede enviar a Telegram.")
+        return
+
     mensaje_base = "<b>🚨 Nuevas Propiedades Encontradas</b>\n\n"
     for prop in nuevos:
         mensaje_base += f"🏠 <b>{prop['titulo']}</b>\n"
