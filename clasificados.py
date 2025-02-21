@@ -18,7 +18,7 @@ ARCHIVO_LISTADOS = "listings.txt"  # Archivo de historial
 
 # Configuración de Telegram
 BOT_TOKEN = "7659368647:AAEpvdAnkC7D3OcHK0uEHwzui44id8L25vI"
-CHAT_ID = "-1001234567890"  # Para grupos, suele iniciar con -100...
+CHAT_ID = "-1002252436524"  # Para grupos, suele iniciar con -100...
 
 # Lista de pueblos deseados
 PUEBLOS = [
