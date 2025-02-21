@@ -16,11 +16,9 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 ARCHIVO_LISTADOS = "listings.txt"  # Archivo de historial
 
-# Configuración de Telegram (ajusta con tus datos)
-# Configuración de Telegram (ajusta con tus datos)
+# Configuración de Telegram
 BOT_TOKEN = "7659368647:AAEpvdAnkC7D3OcHK0uEHwzui44id8L25vI"
-# Asegúrate de usar el Chat ID correcto (para grupos suele ser un número negativo)
-CHAT_ID = "-1002252436524"   # <-- Ajusta aquí (suele ser un número negativo si es grupo)
+CHAT_ID = "-1001234567890"  # Para grupos, suele iniciar con -100...
 
 # Lista de pueblos deseados
 PUEBLOS = [
@@ -92,23 +90,23 @@ def obtener_listados_busqueda(url, pueblo):
         response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         response.raise_for_status()
     except Exception as e:
-        print(f"Error obteniendo listados para {pueblo} (offset {url}): {str(e)}")
+        print(f"Error obteniendo listados para {pueblo} (url={url}): {str(e)}")
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
     resultados = []
-    
+
     bloques = soup.find_all("div", class_="dv-classified-row dv-classified-row-v2")
     if not bloques:
         print(f"No se encontraron bloques de listados en esta página para {pueblo}.")
         return []
-    
+
     for bloque in bloques:
         link_tag = bloque.find("a", href=re.compile("UDRealEstateDetail\\.asp"))
         if link_tag:
             enlace = urllib.parse.urljoin(BASE_URL, link_tag['href'])
             titulo = link_tag.get_text(strip=True)
-            # Evitamos duplicados en la misma página
+            # Evitamos duplicados en la misma búsqueda
             if enlace not in [r['link'] for r in resultados]:
                 resultados.append({
                     'titulo': titulo,
@@ -118,7 +116,7 @@ def obtener_listados_busqueda(url, pueblo):
     return resultados
 
 # --------------------------
-# Función para iterar sobre la paginación para un mismo pueblo
+# Función para iterar la paginación para un pueblo
 # --------------------------
 def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     todos_listados = []
@@ -128,11 +126,10 @@ def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
         listados = obtener_listados_busqueda(url_busqueda, pueblo)
         print(f"   ✅ Encontradas {len(listados)} propiedades en {pueblo} (offset {offset})")
         if not listados:
-            # Si no hay resultados, terminamos.
+            # Si no hay resultados en esta página, paramos.
             break
         todos_listados.extend(listados)
-        # Si llegan menos resultados de los esperados (menos que 'step'),
-        # asumimos que es la última página.
+        # Si llegan menos resultados que 'step', asumimos que es la última página.
         if len(listados) < step:
             break
     return todos_listados
@@ -148,38 +145,48 @@ def extraer_detalles(url):
         response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         response.raise_for_status()
         contenido = response.text
-        
+
         # Extraer data con los patrones
         match_cuartos = PATRONES['cuartos'].search(contenido)
         if match_cuartos:
             detalles['cuartos'] = match_cuartos.group(1)
-        
+
         match_banos = PATRONES['banos'].search(contenido)
         if match_banos:
             detalles['banos'] = match_banos.group(1)
-        
+
         match_telefono = PATRONES['telefono'].search(contenido)
         if match_telefono:
             detalles['telefono'] = match_telefono.group()
+
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
 
 # --------------------------
-# Funciones para manejar historial (evitar duplicados)
+# Manejo de historial (para evitar duplicados)
 # --------------------------
 def cargar_historial():
     """Lee listings.txt y retorna un set con los links ya procesados."""
     if not os.path.exists(ARCHIVO_LISTADOS):
+        print(f"Debug: {ARCHIVO_LISTADOS} no existe, creando un set vacío.")
         return set()
     with open(ARCHIVO_LISTADOS, 'r', encoding='utf-8') as f:
-        return {linea.strip() for linea in f if linea.strip()}
+        lines = {linea.strip() for linea in f if linea.strip()}
+    print(f"Debug: Se cargaron {len(lines)} enlaces del historial.")
+    return lines
 
 def guardar_historial(historial_set):
     """Guarda el historial en listings.txt (uno por línea)."""
+    print(f"Debug: Guardando {len(historial_set)} enlaces en {ARCHIVO_LISTADOS}.")
     with open(ARCHIVO_LISTADOS, 'w', encoding='utf-8') as f:
         for link in sorted(historial_set):
             f.write(link + '\n')
+    # Comprobación rápida
+    print("Debug: Contenido final de listings.txt:")
+    with open(ARCHIVO_LISTADOS, 'r', encoding='utf-8') as f:
+        data = f.read()
+        print(data)
 
 # --------------------------
 # Dividir mensaje en caso de exceder 4096 caracteres (Telegram)
@@ -212,10 +219,10 @@ def enviar_telegram(nuevos):
         if prop.get('telefono'):
             mensaje_base += f"📞 Tel: {prop['telefono']}\n"
         mensaje_base += "\n"
-    
+
     # Dividir y enviar en partes si excede 4096 caracteres
     partes_mensaje = dividir_mensaje_en_partes(mensaje_base, 4096)
-    for parte in partes_mensaje:
+    for idx, parte in enumerate(partes_mensaje, 1):
         respuesta = requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
             data={
@@ -226,7 +233,7 @@ def enviar_telegram(nuevos):
             }
         )
         if respuesta.status_code == 200:
-            print("✅ Mensaje enviado a Telegram (parte).")
+            print(f"✅ Mensaje (parte {idx}/{len(partes_mensaje)}) enviado a Telegram.")
         else:
             print(f"❌ Error Telegram: {respuesta.text}")
 
@@ -234,17 +241,21 @@ def enviar_telegram(nuevos):
 # Función principal
 # --------------------------
 def main():
+    # Cargar el historial existente
     historial = cargar_historial()
+    print(f"Debug: Antes de procesar, historial tiene {len(historial)} enlaces.")
+
     nuevos = []
-    
+
     for pueblo in PUEBLOS:
         print(f"=== Buscando en {pueblo} ===")
         listados_pueblo = obtener_listados_por_pueblo(pueblo, max_offset=150, step=30)
         print(f"   Total encontrados en {pueblo}: {len(listados_pueblo)}")
-        
+
         # Filtrar los que no están en el historial
         listados_filtrados = [lst for lst in listados_pueblo if lst['link'] not in historial]
-        
+        print(f"   -> Nuevos en {pueblo}: {len(listados_filtrados)}")
+
         # Extraer detalles en paralelo (para mayor velocidad)
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_listado = {executor.submit(extraer_detalles, lst['link']): lst for lst in listados_filtrados}
@@ -256,13 +267,17 @@ def main():
                     nuevos.append(listado)
                 except Exception as exc:
                     print(f"Error procesando {listado['link']}: {exc}")
-    
-    # Si hay propiedades nuevas, actualizar historial y enviar
+
     if nuevos:
         print(f"🎉 Se encontraron {len(nuevos)} nuevas propiedades en total.")
+        # Agregar los nuevos al historial
         for prop in nuevos:
             historial.add(prop['link'])
+
+        # Guardar historial actualizado
         guardar_historial(historial)
+
+        # Enviar notificaciones a Telegram
         enviar_telegram(nuevos)
     else:
         print("🤷 No se encontraron nuevas propiedades en ninguno de los pueblos.")
