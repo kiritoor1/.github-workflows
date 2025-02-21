@@ -19,13 +19,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 ARCHIVO_LISTADOS = "listings.txt"  # Archivo de historial
 
-# Configuración de Email (ajusta con tus datos)
-SMTP_SERVER = "mail.ckrapps.tech"
-SMTP_PORT = 465
-EMAIL_USER = "ck@ckrapps.tech"
-EMAIL_PASS = "Baloncesto2.4"
-EMAIL_FROM = EMAIL_USER
-EMAIL_TO = "ck@ckrapps.tech"
 
 # Configuración de Telegram (ajusta con tus datos)
 BOT_TOKEN = "7659368647:AAEpvdAnkC7D3OcHK0uEHwzui44id8L25vI"
