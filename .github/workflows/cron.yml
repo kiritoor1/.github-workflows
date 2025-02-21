@@ -3,7 +3,7 @@ name: Ejecutar Bot Clasificados
 on:
   # Ejecutar cada minuto (GitHub a veces puede tardar unos minutos más en la práctica)
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
