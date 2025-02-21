@@ -1,7 +1,7 @@
 name: Ejecutar Bot Clasificados
 
 on:
-  # Ejecutar cada minuto (GitHub a veces retrasa un poco)
+  # Ejecutar cada minuto (GitHub a veces puede tardar unos minutos más en la práctica)
   schedule:
     - cron: "*/1 * * * *"
   workflow_dispatch:
@@ -9,16 +9,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Permite hacer "push" con el GITHUB_TOKEN
+
+    # Permite hacer 'git push' con el token
     permissions:
       contents: write
 
     steps:
       - name: Checkout el repositorio
         uses: actions/checkout@v3
-        # Esto hace que se baje tu código, incluyendo clasificados.py y listings.txt
+        # Esto baja tu código, incluyendo clasificados.py y listings.txt (si existe).
 
-      - name: Configurar Git (para los commits que se generen)
+      - name: Configurar Git (para los commits automáticos)
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -42,7 +43,7 @@ jobs:
       - name: Guardar cambios (si listings.txt cambió)
         run: |
           git add listings.txt
-          # Si hay cambios, hace commit
+          # Hace commit solo si hay cambios en listings.txt
           git diff --quiet --exit-code listings.txt || git commit -m "Update listings [skip ci]"
-          # Sube el commit
+          # Sube el commit al repositorio
           git push
