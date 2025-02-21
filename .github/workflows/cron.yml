@@ -1,0 +1,28 @@
+name: Ejecutar Bot Clasificados
+
+on:
+  schedule:
+    # Ejecuta cada 30 minutos
+    - cron: '*/30 * * * *'
+  workflow_dispatch:  # Permite ejecutarlo manualmente si lo deseas
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Clonar repositorio
+      uses: actions/checkout@v3
+
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Instalar dependencias
+      run: |
+        pip install requests beautifulsoup4 urllib3
+
+    - name: Ejecutar Bot
+      run: |
+        python clasificados.py
