@@ -1,19 +1,28 @@
 name: Ejecutar Bot Clasificados
 
 on:
+  # Ejecutar cada 1 minuto (¡Ojo! GitHub Actions a veces no permite intervalos tan cortos,
+  # y puede limitar la ejecución real a ~5 minutos mínimo, dependiendo de su política)
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/1 * * * *"
+
+  # Permite disparar manualmente desde la pestaña Actions
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Otorga permisos de escritura al contenido del repo
     permissions:
-      contents: write  # Necesario para poder hacer push
+      contents: write
+
     steps:
       - name: Clonar repositorio
         uses: actions/checkout@v3
         with:
+          # Forzamos a usar el GITHUB_TOKEN integrado
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Evita que se usen credenciales por defecto y fuerza a usar el token
           persist-credentials: false
 
       - name: Configurar Git (para que podamos hacer commit)
@@ -36,10 +45,13 @@ jobs:
 
       - name: Guardar cambios (si listings.txt cambió)
         run: |
+          # Agregamos listings.txt al "stage"
           git add listings.txt
+
+          # Solo hacemos commit si hay cambios (si 'diff' no está vacío)
           git diff --quiet --exit-code listings.txt || git commit -m "Update listings [skip ci]"
+
+          # Empujamos el commit al repos usando el token del entorno
           git push
         env:
-          # GITHUB_TOKEN se inyecta automáticamente, pero hay que declararlo
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
