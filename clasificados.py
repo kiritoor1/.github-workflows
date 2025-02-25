@@ -40,7 +40,8 @@ HEADERS = {
 PATRONES = {
     'cuartos': re.compile(r"Cuartos[\s:\-]+(\d+)", re.IGNORECASE),
     'banos': re.compile(r"Baños[\s:\-]+([\d½¾¼]+(?:\s*[\d½¾¼/]+)?)", re.IGNORECASE),
-    'telefono': re.compile(r'(\(\d{3}\)\s?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{10})')
+    'telefono': re.compile(r'(\(\d{3}\)\s?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{10})'),
+    'precio': re.compile(r'\$(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)  # Patrón para capturar precios como "$120,000" o "$120000"
 }
 
 # --------------------------
@@ -163,13 +164,13 @@ def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     return todos_listados
 
 def extraer_detalles(url):
-    detalles = {'telefono': None, 'cuartos': None, 'banos': None}
+    detalles = {'telefono': None, 'cuartos': None, 'banos': None, 'precio': None}
     try:
         session = requests.Session()
         session.mount("https://", TLSAdapter())
         response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         response.raise_for_status()
-        # Usamos BeautifulSoup para obtener el texto limpio, como en la versión anterior
+        # Usamos BeautifulSoup para obtener el texto limpio
         soup = BeautifulSoup(response.text, 'html.parser')
         contenido = soup.get_text()
 
@@ -184,6 +185,12 @@ def extraer_detalles(url):
         match_telefono = PATRONES['telefono'].search(contenido)
         if match_telefono:
             detalles['telefono'] = match_telefono.group()
+
+        match_precio = PATRONES['precio'].search(contenido)
+        if match_precio:
+            # Normalizamos el precio, eliminando comas y asegurándonos de que sea un formato limpio
+            precio = match_precio.group().replace(',', '').replace('.', '')
+            detalles['precio'] = f"${precio}"
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
@@ -217,6 +224,8 @@ def enviar_telegram(nuevos):
             mensaje_base += f"🛏 Cuartos: {prop['cuartos']}\n"
         if prop.get('banos'):
             mensaje_base += f"🚿 Baños: {prop['banos']}\n"
+        if prop.get('precio'):
+            mensaje_base += f"💰 Precio: {prop['precio']}\n"
         if prop.get('telefono'):
             mensaje_base += f"📞 Tel: {prop['telefono']}\n"
         mensaje_base += "\n"
