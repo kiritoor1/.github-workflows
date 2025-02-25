@@ -24,7 +24,7 @@ API_HISTORIAL = "https://ckrapps.tech/api_historial.php"  # Ajusta si cambia la 
 
 # ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
 BOT_TOKEN = os.getenv("BOT_TOKEN")  # Se toma del entorno (sin exponerlo)
-CHAT_ID = os.getenv("CHAT_ID", "1465819543")
+CHAT_ID = os.getenv("CHAT_ID", "-1002252436524")
 
 # Lista de pueblos deseados
 PUEBLOS = [
@@ -45,7 +45,7 @@ PATRONES = {
     'cuartos': re.compile(r"Cuartos[\s:\-]+(\d+)", re.IGNORECASE),
     'banos': re.compile(r"Baños[\s:\-]+([\d½¾¼]+(?:\s*[\d½¾¼/]+)?)", re.IGNORECASE),
     'telefono': re.compile(r'(\(\d{3}\)\s?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{10})'),
-    'precio': re.compile(r'\$?\s*(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)  # Captura el número después del $ o sin $
+    'precio': re.compile(r'\$?\s*(\d{1,3}(?:,\d{3})*|\d+)', re.IGNORECASE)  # Más específico para capturar $175,000
 }
 
 # --------------------------
@@ -68,11 +68,15 @@ class TLSAdapter(HTTPAdapter):
 # Función auxiliar para formatear el precio con comas
 def formatear_precio(numero_str):
     try:
-        # Eliminar cualquier símbolo no numérico excepto puntos y comas
-        numero = re.sub(r'[^\d.]', '', numero_str)
-        # Convertir a entero y formatear con comas
-        numero_int = int(float(numero))  # Asegura que sea un número válido
-        return f"${locale.format_string('%d', numero_int, grouping=True)}"
+        # Eliminar cualquier símbolo no numérico excepto comas y asegurarnos de mantener el formato
+        numero = re.sub(r'[^\d,]', '', numero_str)
+        # Si hay comas, las mantenemos; si no, las agregamos usando locale
+        if ',' in numero:
+            numero_clean = numero.replace(',', '')
+            return f"${locale.format_string('%d', int(numero_clean), grouping=True)}"
+        else:
+            numero_int = int(numero)  # Convertir a entero
+            return f"${locale.format_string('%d', numero_int, grouping=True)}"
     except (ValueError, TypeError):
         return f"${numero_str}"  # Retornar como está si no se puede formatear
 
@@ -204,7 +208,7 @@ def extraer_detalles(url):
         match_precio = PATRONES['precio'].search(contenido)
         if match_precio:
             # Capturamos solo el número (grupo 1 del patrón) y lo formateamos
-            numero = match_precio.group(1).replace(',', '').replace('.', '')
+            numero = match_precio.group(1)
             detalles['precio'] = formatear_precio(numero)
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
