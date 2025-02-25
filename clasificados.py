@@ -189,12 +189,13 @@ def extraer_detalles(url):
         match_precio = PATRONES['precio'].search(contenido)
         if match_precio:
             # Normalizamos el precio, eliminando comas y asegurándonos de que sea un formato limpio
-            precio = match_precio.group().replace(',', '').replace('.', '')
-            detalles['precio'] = f"${precio}"
+            precio = match_precio.group(1).replace(',', '').replace('.', '')
+            # Formateamos el precio con comas para separar los miles
+            precio_formateado = "{:,}".format(int(precio))
+            detalles['precio'] = precio_formateado
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
-
 # ---------------------------------------------------------
 # Dividir mensaje en caso de exceder 4096 caracteres (Telegram)
 # ---------------------------------------------------------
@@ -225,7 +226,8 @@ def enviar_telegram(nuevos):
         if prop.get('banos'):
             mensaje_base += f"🚿 Baños: {prop['banos']}\n"
         if prop.get('precio'):
-            mensaje_base += f"💰 Precio: {prop['precio']}\n"
+            # Aquí agregamos el símbolo $ antes del precio formateado
+            mensaje_base += f"💰 Precio: ${prop['precio']}\n"
         if prop.get('telefono'):
             mensaje_base += f"📞 Tel: {prop['telefono']}\n"
         mensaje_base += "\n"
