@@ -8,10 +8,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 import urllib3
 import concurrent.futures
-import locale
-
-# Configurar locale para formatear números con comas (por ejemplo, 599000 -> 599,000)
-locale.setlocale(locale.LC_ALL, '')  # Usa la configuración regional del sistema
 
 # --------------------------
 # Configuración inicial
@@ -24,7 +20,7 @@ API_HISTORIAL = "https://ckrapps.tech/api_historial.php"  # Ajusta si cambia la 
 
 # ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
 BOT_TOKEN = os.getenv("BOT_TOKEN")  # Se toma del entorno (sin exponerlo)
-CHAT_ID = os.getenv("CHAT_ID", "-1002252436524")
+CHAT_ID = os.getenv("CHAT_ID", "1465819543")
 
 # Lista de pueblos deseados
 PUEBLOS = [
@@ -45,7 +41,7 @@ PATRONES = {
     'cuartos': re.compile(r"Cuartos[\s:\-]+(\d+)", re.IGNORECASE),
     'banos': re.compile(r"Baños[\s:\-]+([\d½¾¼]+(?:\s*[\d½¾¼/]+)?)", re.IGNORECASE),
     'telefono': re.compile(r'(\(\d{3}\)\s?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{10})'),
-    'precio': re.compile(r'\$?\s*(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)  # Captura el número con o sin $
+    'precio': re.compile(r'\$(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)  # Patrón para capturar precios como "$120,000" o "$120000"
 }
 
 # --------------------------
@@ -64,18 +60,6 @@ class TLSAdapter(HTTPAdapter):
             ssl_context=ctx,
             **pool_kwargs
         )
-
-# Función auxiliar para formatear el precio con un solo $ y comas
-def formatear_precio(numero_str):
-    try:
-        # Eliminar cualquier símbolo no numérico excepto comas y puntos
-        numero = re.sub(r'[^\d.,]', '', numero_str)
-        # Quitar comas y puntos, convertir a entero, y formatear con comas usando locale
-        numero_clean = numero.replace(',', '').replace('.', '')
-        numero_int = int(numero_clean)  # Convertir a entero
-        return f"${locale.format_string('%d', numero_int, grouping=True)}"  # Formato con un solo $ y comas (ej. $175,000)
-    except (ValueError, TypeError):
-        return f"${numero_str}"  # Retornar como está si no se puede formatear
 
 # ---------------------------------------------------------
 # FUNCIONES PARA MANEJAR EL HISTORIAL EN TU SERVIDOR PHP
@@ -204,12 +188,9 @@ def extraer_detalles(url):
 
         match_precio = PATRONES['precio'].search(contenido)
         if match_precio:
-            # Capturamos solo el número (grupo 1 del patrón) y lo formateamos
-            numero = match_precio.group(1)
-            detalles['precio'] = formatear_precio(numero)
-            print(f"Debug - Precio encontrado en {url}: {detalles['precio']} (Número crudo: {numero})")  # Depuración
-        else:
-            print(f"Debug - No se encontró precio en {url}")
+            # Normalizamos el precio, eliminando comas y asegurándonos de que sea un formato limpio
+            precio = match_precio.group().replace(',', '').replace('.', '')
+            detalles['precio'] = f"${precio}"
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
