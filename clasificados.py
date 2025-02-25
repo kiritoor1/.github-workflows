@@ -8,6 +8,10 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 import urllib3
 import concurrent.futures
+import locale
+
+# Configurar locale para formatear números con comas (por ejemplo, 599000 -> 599,000)
+locale.setlocale(locale.LC_ALL, '')  # Usa la configuración regional del sistema
 
 # --------------------------
 # Configuración inicial
@@ -41,7 +45,7 @@ PATRONES = {
     'cuartos': re.compile(r"Cuartos[\s:\-]+(\d+)", re.IGNORECASE),
     'banos': re.compile(r"Baños[\s:\-]+([\d½¾¼]+(?:\s*[\d½¾¼/]+)?)", re.IGNORECASE),
     'telefono': re.compile(r'(\(\d{3}\)\s?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{10})'),
-    'precio': re.compile(r'\$(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)  # Patrón para capturar precios como "$120,000" o "$120000"
+    'precio': re.compile(r'\$?\s*(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)  # Captura el número después del $ o sin $
 }
 
 # --------------------------
@@ -60,6 +64,17 @@ class TLSAdapter(HTTPAdapter):
             ssl_context=ctx,
             **pool_kwargs
         )
+
+# Función auxiliar para formatear el precio con comas
+def formatear_precio(numero_str):
+    try:
+        # Eliminar cualquier símbolo no numérico excepto puntos y comas
+        numero = re.sub(r'[^\d.]', '', numero_str)
+        # Convertir a entero y formatear con comas
+        numero_int = int(float(numero))  # Asegura que sea un número válido
+        return f"${locale.format_string('%d', numero_int, grouping=True)}"
+    except (ValueError, TypeError):
+        return f"${numero_str}"  # Retornar como está si no se puede formatear
 
 # ---------------------------------------------------------
 # FUNCIONES PARA MANEJAR EL HISTORIAL EN TU SERVIDOR PHP
@@ -188,9 +203,9 @@ def extraer_detalles(url):
 
         match_precio = PATRONES['precio'].search(contenido)
         if match_precio:
-            # Normalizamos el precio, eliminando comas y asegurándonos de que sea un formato limpio
-            precio = match_precio.group().replace(',', '').replace('.', '')
-            detalles['precio'] = f"${precio}"
+            # Capturamos solo el número (grupo 1 del patrón) y lo formateamos
+            numero = match_precio.group(1).replace(',', '').replace('.', '')
+            detalles['precio'] = formatear_precio(numero)
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
