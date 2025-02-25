@@ -45,7 +45,7 @@ PATRONES = {
     'cuartos': re.compile(r"Cuartos[\s:\-]+(\d+)", re.IGNORECASE),
     'banos': re.compile(r"Baños[\s:\-]+([\d½¾¼]+(?:\s*[\d½¾¼/]+)?)", re.IGNORECASE),
     'telefono': re.compile(r'(\(\d{3}\)\s?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{10})'),
-    'precio': re.compile(r'\$?\s*(\d{1,3}(?:,\d{3})*|\d+)', re.IGNORECASE)  # Más específico para capturar $175,000
+    'precio': re.compile(r'\$?\s*(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)  # Captura el número con o sin $
 }
 
 # --------------------------
@@ -65,18 +65,15 @@ class TLSAdapter(HTTPAdapter):
             **pool_kwargs
         )
 
-# Función auxiliar para formatear el precio con comas
+# Función auxiliar para formatear el precio con un solo $ y comas
 def formatear_precio(numero_str):
     try:
-        # Eliminar cualquier símbolo no numérico excepto comas y asegurarnos de mantener el formato
-        numero = re.sub(r'[^\d,]', '', numero_str)
-        # Si hay comas, las mantenemos; si no, las agregamos usando locale
-        if ',' in numero:
-            numero_clean = numero.replace(',', '')
-            return f"${locale.format_string('%d', int(numero_clean), grouping=True)}"
-        else:
-            numero_int = int(numero)  # Convertir a entero
-            return f"${locale.format_string('%d', numero_int, grouping=True)}"
+        # Eliminar cualquier símbolo no numérico excepto comas y puntos
+        numero = re.sub(r'[^\d.,]', '', numero_str)
+        # Quitar comas y puntos, convertir a entero, y formatear con comas usando locale
+        numero_clean = numero.replace(',', '').replace('.', '')
+        numero_int = int(numero_clean)  # Convertir a entero
+        return f"${locale.format_string('%d', numero_int, grouping=True)}"  # Formato con un solo $ y comas (ej. $175,000)
     except (ValueError, TypeError):
         return f"${numero_str}"  # Retornar como está si no se puede formatear
 
@@ -210,6 +207,9 @@ def extraer_detalles(url):
             # Capturamos solo el número (grupo 1 del patrón) y lo formateamos
             numero = match_precio.group(1)
             detalles['precio'] = formatear_precio(numero)
+            print(f"Debug - Precio encontrado en {url}: {detalles['precio']} (Número crudo: {numero})")  # Depuración
+        else:
+            print(f"Debug - No se encontró precio en {url}")
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
