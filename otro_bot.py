@@ -95,7 +95,6 @@ def construir_url_busqueda(pueblo, offset=0):
     }
     if offset:
         params['offset'] = str(offset)
-    # Construimos la URL manualmente para preservar los '+' en el pueblo
     query_string = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
     return f"{base}?RESPueblos={pueblo}&{query_string}"
 
@@ -112,19 +111,11 @@ def obtener_listados_busqueda(url, pueblo):
     soup = BeautifulSoup(response.text, "html.parser")
     resultados = []
 
-    # Debug: Imprimir parte del HTML para verificar
-    print(f"Debug: HTML recibido para {pueblo} (primeros 500 caracteres):", soup.prettify()[:500])
-
     bloques = soup.find_all("div", class_="dv-classified-row dv-classified-row-v2")
     if not bloques:
-        print(f"No se encontraron bloques con clase 'dv-classified-row dv-classified-row-v2' para {pueblo}.")
         bloques_alt = soup.find_all("div", class_=re.compile("classified-row"))
         if bloques_alt:
-            print(f"Se encontraron {len(bloques_alt)} bloques con una variante de 'classified-row' para {pueblo}.")
             bloques = bloques_alt
-        else:
-            print(f"No se encontraron bloques alternativos para {pueblo}.")
-            return []
 
     for bloque in bloques:
         link_tag = bloque.find("a", href=re.compile("UDRealEstateDetail\\.asp"))
