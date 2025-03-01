@@ -2,15 +2,15 @@ name: Ejecutar Bot Clasificados
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
-  workflow_dispatch:
+    - cron: "*/15 * * * *"  # Se ejecuta cada 15 minutos
+  workflow_dispatch:        # Permite ejecución manual
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: write         # Permiso para escribir en el repositorio (commits)
 
     steps:
       - name: Checkout el repositorio
@@ -30,15 +30,17 @@ jobs:
         run: |
           pip install requests beautifulsoup4 urllib3
 
-      - name: Ejecutar Bot
+      - name: Ejecutar Bot Clasificados
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          BOT_TOKEN1: ${{ secrets.BOT_TOKEN1 }}  # Añadido BOT_TOKEN1
         run: |
           python clasificados.py
 
       - name: Ejecutar segundo script
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          BOT_TOKEN1: ${{ secrets.BOT_TOKEN1 }}  # Añadido BOT_TOKEN1
         run: |
           python otro_bot.py
 
