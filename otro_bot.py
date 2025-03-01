@@ -20,6 +20,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID", "-4681994182")
 
 PUEBLOS = [
+    "Bayam%F3n",
     "San+Juan+-+Condado-Miramar",
     "San+Juan+-+Hato+Rey",
     "San+Juan+-+R%EDo+Piedras",
@@ -81,7 +82,6 @@ def guardar_historial_remoto(historial_set):
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDREListing.asp"
     params = {
-        'RESPueblos': pueblo,
         'Category': 'Casa',
         'LowPrice': '0',
         'HighPrice': '999999999',
@@ -95,7 +95,9 @@ def construir_url_busqueda(pueblo, offset=0):
     }
     if offset:
         params['offset'] = str(offset)
-    return f"{base}?{urllib.parse.urlencode(params)}"
+    # Construimos la URL manualmente para preservar los '+' en el pueblo
+    query_string = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
+    return f"{base}?RESPueblos={pueblo}&{query_string}"
 
 def obtener_listados_busqueda(url, pueblo):
     try:
@@ -116,7 +118,6 @@ def obtener_listados_busqueda(url, pueblo):
     bloques = soup.find_all("div", class_="dv-classified-row dv-classified-row-v2")
     if not bloques:
         print(f"No se encontraron bloques con clase 'dv-classified-row dv-classified-row-v2' para {pueblo}.")
-        # Buscar alternativas
         bloques_alt = soup.find_all("div", class_=re.compile("classified-row"))
         if bloques_alt:
             print(f"Se encontraron {len(bloques_alt)} bloques con una variante de 'classified-row' para {pueblo}.")
