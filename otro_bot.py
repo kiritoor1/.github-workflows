@@ -15,14 +15,10 @@ import concurrent.futures
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 
-# ======== RUTAS REMOTAS (en tu servidor) ========
-API_HISTORIAL = "https://ckrapps.tech/api_historial1.php"  # Ajusta si cambia la ruta
-
-# ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Se toma del entorno (sin exponerlo)
+API_HISTORIAL = "https://ckrapps.tech/api_historial1.php"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID", "-4681994182")
 
-# Lista de pueblos deseados
 PUEBLOS = [
     "San+Juan+-+Condado-Miramar",
     "San+Juan+-+Hato+Rey",
@@ -39,7 +35,6 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9"
 }
 
-# Patrones para extraer datos de la página de detalle
 PATRONES = {
     'cuartos': re.compile(r"Cuartos[\s:\-]+(\d+)", re.IGNORECASE),
     'banos': re.compile(r"Baños[\s:\-]+([\d½¾¼]+(?:\s*[\d½¾¼/]+)?)", re.IGNORECASE),
@@ -47,9 +42,6 @@ PATRONES = {
     'precio': re.compile(r'\$(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)
 }
 
-# --------------------------
-# Adaptador para conexiones SSL sin verificación
-# --------------------------
 class TLSAdapter(HTTPAdapter):
     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
         ctx = ssl.create_default_context()
@@ -64,9 +56,6 @@ class TLSAdapter(HTTPAdapter):
             **pool_kwargs
         )
 
-# ---------------------------------------------------------
-# FUNCIONES PARA MANEJAR EL HISTORIAL EN TU SERVIDOR PHP
-# ---------------------------------------------------------
 def cargar_historial_remoto():
     try:
         resp = requests.get(API_HISTORIAL, timeout=30)
@@ -89,9 +78,6 @@ def guardar_historial_remoto(historial_set):
     except Exception as e:
         print(f"❌ Error al guardar historial remoto: {str(e)}")
 
-# ---------------------------------------------------------
-# Resto de funciones para scraping
-# ---------------------------------------------------------
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDREListing.asp"
     params = {
@@ -124,10 +110,20 @@ def obtener_listados_busqueda(url, pueblo):
     soup = BeautifulSoup(response.text, "html.parser")
     resultados = []
 
+    # Debug: Imprimir parte del HTML para verificar
+    print(f"Debug: HTML recibido para {pueblo} (primeros 500 caracteres):", soup.prettify()[:500])
+
     bloques = soup.find_all("div", class_="dv-classified-row dv-classified-row-v2")
     if not bloques:
-        print(f"No se encontraron bloques de listados en esta página para {pueblo}.")
-        return []
+        print(f"No se encontraron bloques con clase 'dv-classified-row dv-classified-row-v2' para {pueblo}.")
+        # Buscar alternativas
+        bloques_alt = soup.find_all("div", class_=re.compile("classified-row"))
+        if bloques_alt:
+            print(f"Se encontraron {len(bloques_alt)} bloques con una variante de 'classified-row' para {pueblo}.")
+            bloques = bloques_alt
+        else:
+            print(f"No se encontraron bloques alternativos para {pueblo}.")
+            return []
 
     for bloque in bloques:
         link_tag = bloque.find("a", href=re.compile("UDRealEstateDetail\\.asp"))
@@ -146,7 +142,7 @@ def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     todos_listados = []
     for offset in range(0, max_offset + 1, step):
         url_busqueda = construir_url_busqueda(pueblo, offset)
-        print(f"🔍 Buscando casas en {pueblo} con offset {offset}...")
+        print(f"🔍 Buscando casas en {pueblo} con offset {offset}... URL: {url_busqueda}")
         listados = obtener_listados_busqueda(url_busqueda, pueblo)
         print(f"   ✅ Encontradas {len(listados)} propiedades en {pueblo} (offset {offset})")
         if not listados:
@@ -187,15 +183,9 @@ def extraer_detalles(url):
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
 
-# ---------------------------------------------------------
-# Función para limpiar nombres de pueblos
-# ---------------------------------------------------------
 def limpiar_nombre_pueblo(pueblo):
     return urllib.parse.unquote(pueblo).replace("+", " ")
 
-# ---------------------------------------------------------
-# Dividir mensaje en caso de exceder 4096 caracteres (Telegram)
-# ---------------------------------------------------------
 def dividir_mensaje_en_partes(mensaje, limite=4096):
     partes = []
     while len(mensaje) > limite:
@@ -244,9 +234,6 @@ def enviar_telegram(nuevos):
         else:
             print(f"❌ Error Telegram: {respuesta.text}")
 
-# ---------------------------------------------------------
-# Función principal
-# ---------------------------------------------------------
 def main():
     historial = cargar_historial_remoto()
     print(f"Debug: Antes de procesar, historial remoto tiene {len(historial)} enlaces.")
@@ -285,6 +272,5 @@ def main():
     else:
         print("🤷 No se encontraron nuevas propiedades en ninguno de los pueblos.")
 
-# ---------------------------------------------------------
 if __name__ == "__main__":
     main()
