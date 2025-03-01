@@ -16,7 +16,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 
 API_HISTORIAL = "https://ckrapps.tech/api_historial1.php"
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN1")
 CHAT_ID = os.getenv("CHAT_ID", "-4681994182")
 
 PUEBLOS = [
