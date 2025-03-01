@@ -38,6 +38,6 @@ jobs:
 
       - name: Guardar cambios (si otro_listings.txt cambió)
         run: |
-          git add otro_listings.txt
+          git add listings.txt
           git diff --quiet --exit-code otro_listings.txt || git commit -m "Update otro listings [skip ci]"
           git push
