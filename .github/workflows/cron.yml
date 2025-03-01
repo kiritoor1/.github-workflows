@@ -40,7 +40,7 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
-          python otro_script.py
+          python otro_bot.py
 
       - name: Guardar cambios (si listings.txt cambió)
         run: |
