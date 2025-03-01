@@ -24,8 +24,6 @@ CHAT_ID = os.getenv("CHAT_ID", "-4681994182")
 
 # Lista de pueblos deseados
 PUEBLOS = [
-    "San Juan",
-    "Bayam%F3n",
     "San+Juan+-+Condado-Miramar",
     "San+Juan+-+Hato+Rey",
     "San+Juan+-+R%EDo+Piedras",
