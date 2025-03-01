@@ -1,0 +1,43 @@
+name: Ejecutar Otro Bot
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"  # Se ejecuta cada 20 minutos
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Instalar dependencias
+        run: |
+          pip install requests beautifulsoup4 urllib3
+
+      - name: Ejecutar Otro Bot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          python otro_bot.py
+
+      - name: Guardar cambios (si otro_listings.txt cambió)
+        run: |
+          git add otro_listings.txt
+          git diff --quiet --exit-code otro_listings.txt || git commit -m "Update otro listings [skip ci]"
+          git push
