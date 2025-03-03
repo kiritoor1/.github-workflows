@@ -8,6 +8,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 import urllib3
 import concurrent.futures
+import time
 
 # --------------------------
 # Configuración inicial
@@ -64,22 +65,32 @@ class TLSAdapter(HTTPAdapter):
 # ---------------------------------------------------------
 # FUNCIONES PARA MANEJAR EL HISTORIAL EN TU SERVIDOR PHP
 # ---------------------------------------------------------
-def cargar_historial_remoto():
+def cargar_historial_remoto(max_retries=3, delay=5):
     """
     Hace un GET a https://ckrapps.tech/api_historial.php
     Debe retornar un JSON con {"enlaces": [...]}.
     Lo convertimos a un set() para manejar duplicados en Python.
+    Intenta varias veces en caso de error.
+    
+    Args:
+        max_retries (int): Número máximo de reintentos (default: 3).
+        delay (int): Segundos de espera entre reintentos (default: 5).
     """
-    try:
-        resp = requests.get(API_HISTORIAL, timeout=60)
-        resp.raise_for_status()
-        data = resp.json()
-        enlaces = data.get("enlaces", [])
-        print(f"Debug: Se cargaron {len(enlaces)} enlaces del historial remoto.")
-        return set(enlaces)
-    except Exception as e:
-        print(f"❌ Error al cargar historial remoto: {str(e)}")
-        return set()
+    for attempt in range(max_retries):
+        try:
+            resp = requests.get(API_HISTORIAL, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+            enlaces = data.get("enlaces", [])
+            print(f"Debug: Se cargaron {len(enlaces)} enlaces del historial remoto.")
+            return set(enlaces)
+        except Exception as e:
+            print(f"❌ Intento {attempt + 1}/{max_retries} fallido: {str(e)}")
+            if attempt < max_retries - 1:  # No esperar después del último intento
+                time.sleep(delay)
+            else:
+                print(f"❌ Todos los {max_retries} intentos fallaron. Devolviendo conjunto vacío.")
+                return set()
 
 def guardar_historial_remoto(historial_set):
     """
