@@ -20,12 +20,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN1")
 CHAT_ID = os.getenv("CHAT_ID", "-4745765501")
 
 PUEBLOS = [
-    "Bayam%F3n",
-    "San+Juan+-+Condado-Miramar",
-    "San+Juan+-+Hato+Rey",
-    "San+Juan+-+R%EDo+Piedras",
-    "San+Juan+-+Santurce",
-    "San+Juan+-+Viejo+SJ"
+    "Bayam%F3n"
 ]
 
 HEADERS = {
