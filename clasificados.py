@@ -71,7 +71,7 @@ def cargar_historial_remoto():
     Lo convertimos a un set() para manejar duplicados en Python.
     """
     try:
-        resp = requests.get(API_HISTORIAL, timeout=30)
+        resp = requests.get(API_HISTORIAL, timeout=60)
         resp.raise_for_status()
         data = resp.json()
         enlaces = data.get("enlaces", [])
