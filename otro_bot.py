@@ -19,8 +19,15 @@ API_HISTORIAL = "https://ckrapps.tech/api_historial1.php"
 BOT_TOKEN = os.getenv("BOT_TOKEN1")
 CHAT_ID = os.getenv("CHAT_ID", "-4745765501")
 
+# Nuevos pueblos solicitados
 PUEBLOS = [
-    "Bayam%F3n"
+    "Metro",
+    "Fajardo",
+    "Cayey",
+    "Caguas",
+    "Salinas",
+    "Canovanas",
+    "R%EDo+Grande"  # Río Grande codificado correctamente
 ]
 
 HEADERS = {
@@ -77,10 +84,10 @@ def guardar_historial_remoto(historial_set):
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDREListing.asp"
     params = {
-        'Category': 'Casa',
-        'LowPrice': '0',
-        'HighPrice': '999999999',
-        'Bedrooms': '%',
+        'Category': '%',  # Cambiado a cualquier tipo de propiedad
+        'LowPrice': '10000',  # Precio mínimo $10,000
+        'HighPrice': '125000',  # Precio máximo $125,000
+        'Bedrooms': '%',  # Cualquier cantidad de cuartos
         'Area': '',
         'Repo': 'Repo',
         'Opt': 'Opt',
@@ -129,7 +136,7 @@ def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     todos_listados = []
     for offset in range(0, max_offset + 1, step):
         url_busqueda = construir_url_busqueda(pueblo, offset)
-        print(f"🔍 Buscando casas en {pueblo} con offset {offset}... URL: {url_busqueda}")
+        print(f"🔍 Buscando propiedades en {pueblo} con offset {offset}... URL: {url_busqueda}")
         listados = obtener_listados_busqueda(url_busqueda, pueblo)
         print(f"   ✅ Encontradas {len(listados)} propiedades en {pueblo} (offset {offset})")
         if not listados:
