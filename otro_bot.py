@@ -19,15 +19,22 @@ API_HISTORIAL = "https://ckrapps.tech/api_historial1.php"
 BOT_TOKEN = os.getenv("BOT_TOKEN1")
 CHAT_ID = os.getenv("CHAT_ID", "-4745765501")
 
-# Nuevos pueblos solicitados
+# Nueva lista de pueblos
 PUEBLOS = [
-    "Metro",
+    "Bayam%F3n",      # Bayamón
+    "Guaynabo",
+    "Caguas",
+    "San+Juan",       # San Juan
+    "Toa+Alta",       # Toa Alta
+    "Toa+Baja",       # Toa Baja
+    "Carolina",
+    "Cata%F1o",      # Cataño
+    "Trujillo+Alto",  # Trujillo Alto
     "Fajardo",
     "Cayey",
-    "Caguas",
     "Salinas",
     "Canovanas",
-    "R%EDo+Grande"  # Río Grande codificado correctamente
+    "R%EDo+Grande"    # Río Grande
 ]
 
 HEADERS = {
@@ -84,7 +91,7 @@ def guardar_historial_remoto(historial_set):
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDREListing.asp"
     params = {
-        'Category': '%',  # Cambiado a cualquier tipo de propiedad
+        'Category': '%',  # Cualquier tipo de propiedad
         'LowPrice': '10000',  # Precio mínimo $10,000
         'HighPrice': '125000',  # Precio máximo $125,000
         'Bedrooms': '%',  # Cualquier cantidad de cuartos
