@@ -8,9 +8,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 import urllib3
 import concurrent.futures
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-import time
 
 # --------------------------
 # Configuración inicial
@@ -23,10 +20,22 @@ API_HISTORIAL = "https://ckrapps.tech/api_historial2.php"  # Usamos el mismo end
 BOT_TOKEN = os.getenv("BOT_TOKEN2")  # Se toma del entorno (sin exponerlo)
 CHAT_ID = os.getenv("CHAT_ID", "-1002536693724")
 
-# Lista de pueblos para autos (igual a la de casas)
+# Lista de pueblos (igual a casas)
 PUEBLOS = [
-    "Ponce",      # Bayamón
-
+    "Bayam%F3n",      # Bayamón
+    "Guaynabo",
+    "Caguas",
+    "San+Juan",       # San Juan
+    "Toa+Alta",       # Toa Alta
+    "Toa+Baja",       # Toa Baja
+    "Carolina",
+    "Cata%F1o",      # Cataño
+    "Trujillo+Alto",  # Trujillo Alto
+    "Fajardo",
+    "Cayey",
+    "Salinas",
+    "Canovanas",
+    "R%EDo+Grande"    # Río Grande
 ]
 
 HEADERS = {
@@ -110,25 +119,17 @@ def construir_url_busqueda(pueblo, offset=0):
     return f"{base}?{query_string}"
 
 def obtener_listados_busqueda(url, pueblo):
-    options = Options()
-    options.headless = True  # Sin interfaz gráfica
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-    options.add_argument("--disable-blink-features=AutomationControlled")  # Evita detección de bot
-    driver = webdriver.Chrome(options=options)
-
     try:
-        driver.get(url)
-        time.sleep(3)  # Espera para que cargue el JavaScript
-        html = driver.page_source
-        print(f"Debug: HTML recibido para {pueblo} (primeros 500 caracteres):\n{html[:500]}")
+        session = requests.Session()
+        session.mount("https://", TLSAdapter())
+        response = session.get(url, headers=HEADERS, verify=False, timeout=30)
+        response.raise_for_status()
+        print(f"Debug: HTML recibido para {pueblo} (primeros 500 caracteres):\n{response.text[:500]}")
     except Exception as e:
         print(f"Error obteniendo listados para {pueblo} (url={url}): {str(e)}")
-        driver.quit()
         return []
-    finally:
-        driver.quit()
 
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(response.text, "html.parser")
     resultados = []
 
     tbody = soup.find("tbody")
