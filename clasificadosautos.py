@@ -23,6 +23,7 @@ API_HISTORIAL = "https://ckrapps.tech/api_historial2.php"  # Ajusta si cambia la
 BOT_TOKEN = os.getenv("BOT_TOKEN2")  # Se toma del entorno (sin exponerlo)
 CHAT_ID = os.getenv("CHAT_ID", "-1002536693724")
 
+
 # Lista de pueblos deseados
 PUEBLOS = [
     "Ponce", "Juana Díaz", "Santa Isabel", "Coamo", 
@@ -30,11 +31,10 @@ PUEBLOS = [
 ]
 
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "keep-alive"
 }
 
 # Patrones para extraer datos de la página de detalle de autos
@@ -120,6 +120,7 @@ def obtener_listados_busqueda(url, pueblo):
         session.mount("https://", TLSAdapter())
         response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         response.raise_for_status()
+        print(f"Debug: HTML recibido para {pueblo} (primeros 500 caracteres):\n{response.text[:500]}")
     except Exception as e:
         print(f"Error obteniendo listados para {pueblo} (url={url}): {str(e)}")
         return []
@@ -127,7 +128,14 @@ def obtener_listados_busqueda(url, pueblo):
     soup = BeautifulSoup(response.text, "html.parser")
     resultados = []
 
-    bloques = soup.find_all("div", class_="dv-classified-row dv-classified-row-v2")
+    # Buscamos las filas <tr> dentro del <tbody> principal
+    tbody = soup.find("tbody")
+    if not tbody:
+        print(f"No se encontró <tbody> en esta página para {pueblo}.")
+        return []
+
+    bloques = tbody.find_all("tr", align="center", valign="middle")
+    print(f"Debug: Número de bloques encontrados en {pueblo}: {len(bloques)}")
     if not bloques:
         print(f"No se encontraron bloques de listados en esta página para {pueblo}.")
         return []
@@ -136,7 +144,8 @@ def obtener_listados_busqueda(url, pueblo):
         link_tag = bloque.find("a", href=re.compile("UDTransDetail\\.asp"))
         if link_tag:
             enlace = urllib.parse.urljoin(BASE_URL, link_tag['href'])
-            titulo = link_tag.get_text(strip=True)
+            titulo_tag = bloque.find("span", class_="Tahoma15blacknound")
+            titulo = titulo_tag.get_text(strip=True) if titulo_tag else "Sin título"
             if enlace not in [r['link'] for r in resultados]:
                 resultados.append({
                     'titulo': titulo,
