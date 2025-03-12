@@ -21,7 +21,7 @@ API_HISTORIAL = "https://ckrapps.tech/api_historial2.php"  # Ajusta si cambia la
 
 # ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
 BOT_TOKEN = os.getenv("BOT_TOKEN2")  # Se toma del entorno (sin exponerlo)
-CHAT_ID = os.getenv("CHAT_ID", "-1002252436524")
+CHAT_ID = os.getenv("CHAT_ID", "-1002536693724")
 
 # Lista de pueblos deseados
 PUEBLOS = [
