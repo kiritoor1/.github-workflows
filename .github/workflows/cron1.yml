@@ -1,0 +1,44 @@
+name: Ejecutar Bot Autos
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"  # Se ejecuta cada 15 minutos
+  workflow_dispatch:        # Permite ejecución manual
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write         # Permiso para escribir en el repositorio (commits)
+
+    steps:
+      - name: Checkout el repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Git (para los commits automáticos)
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Instalar dependencias
+        run: |
+          pip install requests beautifulsoup4 urllib3
+
+      - name: Ejecutar Bot Autos
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN2 }}
+        run: |
+          python clasificadosautos.py
+
+   
+      - name: Guardar cambios (si listings.txt cambió)
+        run: |
+          git add listings.txt
+          git diff --quiet --exit-code listings.txt || git commit -m "Update listings [skip ci]"
+          git push
