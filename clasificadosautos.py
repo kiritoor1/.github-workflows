@@ -30,13 +30,16 @@ PUEBLOS = [
     "Guayama", "Peñuelas", "Guanica", "Guayanilla", "Yauco"
 ]
 
+# Actualiza los encabezados en la sección de configuración inicial
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Connection": "keep-alive"
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Referer": "https://www.clasificadosonline.com/",
+    "DNT": "1"  # Do Not Track, para parecer más humano
 }
-
 # Patrones para extraer datos de la página de detalle de autos
 PATRONES = {
     'marca_modelo': re.compile(r'Marca\s*:\s*([^<]+?)(?:<|$)', re.IGNORECASE),
@@ -128,7 +131,6 @@ def obtener_listados_busqueda(url, pueblo):
     soup = BeautifulSoup(response.text, "html.parser")
     resultados = []
 
-    # Buscamos las filas <tr> dentro del <tbody> principal
     tbody = soup.find("tbody")
     if not tbody:
         print(f"No se encontró <tbody> en esta página para {pueblo}.")
@@ -153,7 +155,7 @@ def obtener_listados_busqueda(url, pueblo):
                     'pueblo': pueblo
                 })
     return resultados
-
+    
 def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     todos_listados = []
     for offset in range(0, max_offset + 1, step):
