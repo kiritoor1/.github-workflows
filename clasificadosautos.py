@@ -25,20 +25,8 @@ CHAT_ID = os.getenv("CHAT_ID", "-1002536693724")
 
 # Lista de pueblos para autos (igual a la de casas)
 PUEBLOS = [
-    "Bayam%F3n",      # Bayamón
-    "Guaynabo",
-    "Caguas",
-    "San+Juan",       # San Juan
-    "Toa+Alta",       # Toa Alta
-    "Toa+Baja",       # Toa Baja
-    "Carolina",
-    "Cata%F1o",      # Cataño
-    "Trujillo+Alto",  # Trujillo Alto
-    "Fajardo",
-    "Cayey",
-    "Salinas",
-    "Canovanas",
-    "R%EDo+Grande"    # Río Grande
+    "Ponce",      # Bayamón
+
 ]
 
 HEADERS = {
