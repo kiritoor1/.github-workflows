@@ -43,9 +43,3 @@ jobs:
           BOT_TOKEN1: ${{ secrets.BOT_TOKEN1 }}  # Añadido BOT_TOKEN1
         run: |
           python otro_bot.py
-
-      - name: Guardar cambios (si listings.txt cambió)
-        run: |
-          git add listings.txt
-          git diff --quiet --exit-code listings.txt || git commit -m "Update listings [skip ci]"
-          git push
