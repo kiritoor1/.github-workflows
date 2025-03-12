@@ -1,4 +1,5 @@
-import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 import os
 import re
@@ -9,6 +10,7 @@ from urllib3.poolmanager import PoolManager
 import urllib3
 import concurrent.futures
 import time
+import requests
 
 # --------------------------
 # Configuración inicial
@@ -16,31 +18,16 @@ import time
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 
-# ======== RUTAS REMOTAS (en tu servidor) ========
-API_HISTORIAL = "https://ckrapps.tech/api_historial2.php"  # Ajusta si cambia la ruta
-
+API_HISTORIAL = "https://ckrapps.tech/api_historia2.php"
 # ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
 BOT_TOKEN = os.getenv("BOT_TOKEN2")  # Se toma del entorno (sin exponerlo)
 CHAT_ID = os.getenv("CHAT_ID", "-1002536693724")
 
-
-# Lista de pueblos deseados
 PUEBLOS = [
-    "Ponce", "Juana Díaz", "Santa Isabel", "Coamo", 
+    "Ponce", "Juana Díaz", "Santa Isabel", "Coamo",
     "Guayama", "Peñuelas", "Guanica", "Guayanilla", "Yauco"
 ]
 
-# Actualiza los encabezados en la sección de configuración inicial
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Referer": "https://www.clasificadosonline.com/",
-    "DNT": "1"  # Do Not Track, para parecer más humano
-}
-# Patrones para extraer datos de la página de detalle de autos
 PATRONES = {
     'marca_modelo': re.compile(r'Marca\s*:\s*([^<]+?)(?:<|$)', re.IGNORECASE),
     'ano': re.compile(r'Año\s*:\s*(\d{4})', re.IGNORECASE),
@@ -49,7 +36,7 @@ PATRONES = {
 }
 
 # --------------------------
-# Adaptador para conexiones SSL sin verificación
+# Adaptador para conexiones SSL (para detalles)
 # --------------------------
 class TLSAdapter(HTTPAdapter):
     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
@@ -66,7 +53,7 @@ class TLSAdapter(HTTPAdapter):
         )
 
 # ---------------------------------------------------------
-# FUNCIONES PARA MANEJAR EL HISTORIAL EN TU SERVIDOR PHP
+# Funciones para historial remoto
 # ---------------------------------------------------------
 def cargar_historial_remoto(max_retries=3, delay=5):
     for attempt in range(max_retries):
@@ -101,13 +88,13 @@ def guardar_historial_remoto(historial_set):
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDTransListingADV.asp"
     params = {
-        'Marca': '0',  # Todas las marcas
-        'TipoC': '1',  # Tipo de vehículo (autos)
+        'Marca': '0',
+        'TipoC': '1',
         'RESPueblos': pueblo,
-        'FromYear': '0',  # Año mínimo
-        'ToYear': '2025',  # Año máximo
-        'LowPrice': '999',  # Precio mínimo
-        'HighPrice': '10000',  # Precio máximo
+        'FromYear': '0',
+        'ToYear': '2025',
+        'LowPrice': '999',
+        'HighPrice': '10000',
         'Key': '',
         'Submit2': 'Buscar',
         'IncPrecio': '1',
@@ -118,17 +105,25 @@ def construir_url_busqueda(pueblo, offset=0):
     return f"{base}?{urllib.parse.urlencode(params)}"
 
 def obtener_listados_busqueda(url, pueblo):
+    options = Options()
+    options.headless = True  # Sin interfaz gráfica
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+    options.add_argument("--disable-blink-features=AutomationControlled")  # Evita detección de bot
+    driver = webdriver.Chrome(options=options)
+
     try:
-        session = requests.Session()
-        session.mount("https://", TLSAdapter())
-        response = session.get(url, headers=HEADERS, verify=False, timeout=30)
-        response.raise_for_status()
-        print(f"Debug: HTML recibido para {pueblo} (primeros 500 caracteres):\n{response.text[:500]}")
+        driver.get(url)
+        time.sleep(3)  # Espera para que cargue el JavaScript
+        html = driver.page_source
+        print(f"Debug: HTML recibido para {pueblo} (primeros 500 caracteres):\n{html[:500]}")
     except Exception as e:
         print(f"Error obteniendo listados para {pueblo} (url={url}): {str(e)}")
+        driver.quit()
         return []
+    finally:
+        driver.quit()
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
     resultados = []
 
     tbody = soup.find("tbody")
@@ -155,7 +150,7 @@ def obtener_listados_busqueda(url, pueblo):
                     'pueblo': pueblo
                 })
     return resultados
-    
+
 def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     todos_listados = []
     for offset in range(0, max_offset + 1, step):
@@ -175,7 +170,9 @@ def extraer_detalles(url):
     try:
         session = requests.Session()
         session.mount("https://", TLSAdapter())
-        response = session.get(url, headers=HEADERS, verify=False, timeout=30)
+        response = session.get(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        }, verify=False, timeout=30)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         contenido = soup.get_text()
@@ -202,7 +199,7 @@ def extraer_detalles(url):
     return detalles
 
 # ---------------------------------------------------------
-# Dividir mensaje para Telegram
+# Funciones para Telegram
 # ---------------------------------------------------------
 def dividir_mensaje_en_partes(mensaje, limite=4096):
     partes = []
