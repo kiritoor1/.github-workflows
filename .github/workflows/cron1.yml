@@ -29,7 +29,6 @@ jobs:
       - name: Instalar dependencias
         run: |
           pip install requests beautifulsoup4 urllib3
-          pip install selenium
       - name: Ejecutar Bot Autos
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN2 }}
