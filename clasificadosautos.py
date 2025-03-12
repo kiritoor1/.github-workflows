@@ -1,5 +1,4 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import requests
 from bs4 import BeautifulSoup
 import os
 import re
@@ -9,8 +8,9 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 import urllib3
 import concurrent.futures
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 import time
-import requests
 
 # --------------------------
 # Configuración inicial
@@ -18,15 +18,36 @@ import requests
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 
-API_HISTORIAL = "https://ckrapps.tech/api_historia2.php"
+API_HISTORIAL = "https://ckrapps.tech/api_historial2.php"  # Usamos el mismo endpoint que para casas
 # ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
 BOT_TOKEN = os.getenv("BOT_TOKEN2")  # Se toma del entorno (sin exponerlo)
 CHAT_ID = os.getenv("CHAT_ID", "-1002536693724")
 
+# Lista de pueblos para autos (igual a la de casas)
 PUEBLOS = [
-    "Ponce", "Juana Díaz", "Santa Isabel", "Coamo",
-    "Guayama", "Peñuelas", "Guanica", "Guayanilla", "Yauco"
+    "Bayam%F3n",      # Bayamón
+    "Guaynabo",
+    "Caguas",
+    "San+Juan",       # San Juan
+    "Toa+Alta",       # Toa Alta
+    "Toa+Baja",       # Toa Baja
+    "Carolina",
+    "Cata%F1o",      # Cataño
+    "Trujillo+Alto",  # Trujillo Alto
+    "Fajardo",
+    "Cayey",
+    "Salinas",
+    "Canovanas",
+    "R%EDo+Grande"    # Río Grande
 ]
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9"
+}
 
 PATRONES = {
     'marca_modelo': re.compile(r'Marca\s*:\s*([^<]+?)(?:<|$)', re.IGNORECASE),
@@ -36,7 +57,7 @@ PATRONES = {
 }
 
 # --------------------------
-# Adaptador para conexiones SSL (para detalles)
+# Adaptador para conexiones SSL
 # --------------------------
 class TLSAdapter(HTTPAdapter):
     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
@@ -55,22 +76,17 @@ class TLSAdapter(HTTPAdapter):
 # ---------------------------------------------------------
 # Funciones para historial remoto
 # ---------------------------------------------------------
-def cargar_historial_remoto(max_retries=3, delay=5):
-    for attempt in range(max_retries):
-        try:
-            resp = requests.get(API_HISTORIAL, timeout=60)
-            resp.raise_for_status()
-            data = resp.json()
-            enlaces = data.get("enlaces", [])
-            print(f"Debug: Se cargaron {len(enlaces)} enlaces del historial remoto.")
-            return set(enlaces)
-        except Exception as e:
-            print(f"❌ Intento {attempt + 1}/{max_retries} fallido: {str(e)}")
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-            else:
-                print(f"❌ Todos los {max_retries} intentos fallaron. Devolviendo conjunto vacío.")
-                return set()
+def cargar_historial_remoto():
+    try:
+        resp = requests.get(API_HISTORIAL, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        enlaces = data.get("enlaces", [])
+        print(f"Debug: Se cargaron {len(enlaces)} enlaces del historial remoto.")
+        return set(enlaces)
+    except Exception as e:
+        print(f"❌ Error al cargar historial remoto: {str(e)}")
+        return set()
 
 def guardar_historial_remoto(historial_set):
     data = {"enlaces": list(historial_set)}
@@ -88,13 +104,13 @@ def guardar_historial_remoto(historial_set):
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDTransListingADV.asp"
     params = {
-        'Marca': '0',
-        'TipoC': '1',
+        'Marca': '0',  # Todas las marcas
+        'TipoC': '1',  # Tipo de vehículo (autos)
         'RESPueblos': pueblo,
-        'FromYear': '0',
-        'ToYear': '2025',
-        'LowPrice': '999',
-        'HighPrice': '10000',
+        'FromYear': '0',  # Año mínimo
+        'ToYear': '2025',  # Año máximo
+        'LowPrice': '999',  # Precio mínimo
+        'HighPrice': '10000',  # Precio máximo
         'Key': '',
         'Submit2': 'Buscar',
         'IncPrecio': '1',
@@ -102,12 +118,13 @@ def construir_url_busqueda(pueblo, offset=0):
     }
     if offset:
         params['offset'] = str(offset)
-    return f"{base}?{urllib.parse.urlencode(params)}"
+    query_string = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
+    return f"{base}?{query_string}"
 
 def obtener_listados_busqueda(url, pueblo):
     options = Options()
     options.headless = True  # Sin interfaz gráfica
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     options.add_argument("--disable-blink-features=AutomationControlled")  # Evita detección de bot
     driver = webdriver.Chrome(options=options)
 
@@ -155,7 +172,7 @@ def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     todos_listados = []
     for offset in range(0, max_offset + 1, step):
         url_busqueda = construir_url_busqueda(pueblo, offset)
-        print(f"🔍 Buscando autos en {pueblo} con offset {offset}...")
+        print(f"🔍 Buscando autos en {pueblo} con offset {offset}... URL: {url_busqueda}")
         listados = obtener_listados_busqueda(url_busqueda, pueblo)
         print(f"   ✅ Encontrados {len(listados)} autos en {pueblo} (offset {offset})")
         if not listados:
@@ -170,9 +187,7 @@ def extraer_detalles(url):
     try:
         session = requests.Session()
         session.mount("https://", TLSAdapter())
-        response = session.get(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-        }, verify=False, timeout=30)
+        response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         contenido = soup.get_text()
@@ -198,9 +213,9 @@ def extraer_detalles(url):
         print(f"Error extrayendo detalles de {url}: {str(e)}")
     return detalles
 
-# ---------------------------------------------------------
-# Funciones para Telegram
-# ---------------------------------------------------------
+def limpiar_nombre_pueblo(pueblo):
+    return urllib.parse.unquote(pueblo).replace("+", " ")
+
 def dividir_mensaje_en_partes(mensaje, limite=4096):
     partes = []
     while len(mensaje) > limite:
@@ -221,7 +236,7 @@ def enviar_telegram(nuevos):
     mensaje_base = "<b>🚗 Nuevos Autos Encontrados</b>\n\n"
     for auto in nuevos:
         mensaje_base += f"🚙 <b>{auto['titulo']}</b>\n"
-        mensaje_base += f"📍 Pueblo: {auto['pueblo']}\n"
+        mensaje_base += f"📍 Pueblo: {limpiar_nombre_pueblo(auto['pueblo'])}\n"
         mensaje_base += f"🔗 <a href='{auto['link']}'>Ver auto</a>\n"
         if auto.get('marca_modelo'):
             mensaje_base += f"🏷 Marca/Modelo: {auto['marca_modelo']}\n"
@@ -290,6 +305,5 @@ def main():
     else:
         print("🤷 No se encontraron nuevos autos en ninguno de los pueblos.")
 
-# ---------------------------------------------------------
 if __name__ == "__main__":
     main()
