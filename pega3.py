@@ -29,7 +29,7 @@ async def enviar_telegram(mensaje):
         logging.error(f"Error al enviar a Telegram: {e}")
         print(f"Error al enviar a Telegram: {e}")
 
-# Recolectar historial de LottoStrategies (limitado a últimos 30 sorteos por tipo)
+# Recolectar historial de LottoStrategies (combinado Día y Noche)
 def buscar_historial_lottostrategies(juego="Pega 3"):
     sorteos = []
     urls = {
@@ -48,7 +48,7 @@ def buscar_historial_lottostrategies(juego="Pega 3"):
             response = requests.get(url, headers=headers, timeout=5)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
-            filas = soup.find_all("tr")[1:31]  # Limitar a 30 sorteos
+            filas = soup.find_all("tr")[1:31]  # Limitar a 30 sorteos por tipo
             for fila in filas:
                 celdas = fila.find_all("td")
                 if len(celdas) >= 2:
@@ -72,7 +72,7 @@ def validar_datos(fecha, numeros):
     except ValueError:
         return False
 
-# Guardar datos en CSV (rápido, sin duplicados)
+# Guardar datos en CSV
 def guardar_datos_csv(sorteos, archivo="pega_datos_historico.csv"):
     sorteos_unicos = list({(s["fecha"], s["tipo"], s["juego"]): s for s in sorteos}.values())
     with open(archivo, "w", newline="") as csvfile:
@@ -82,46 +82,45 @@ def guardar_datos_csv(sorteos, archivo="pega_datos_historico.csv"):
         writer.writerows(sorteos_unicos)
     return sorteos_unicos
 
-# Preparar datos para ML (rápido, con menos características pero efectivas)
-def preparar_datos_ml(sorteos, juego, tipo_sorteo):
-    df = pd.DataFrame(sorteos)
-    df = df[(df["juego"] == juego) & (df["tipo"] == tipo_sorteo)]
+# Preparar datos para ML (sin distinguir Día/Noche)
+def preparar_datos_ml(sorteos, juego):
+    df = pd.DataFrame([s for s in sorteos if s["juego"] == juego])
     df["fecha"] = pd.to_datetime(df["fecha"], format="%m/%d/%y")
-    df = df.sort_values("fecha").tail(30)  # Últimos 30 sorteos
+    df = df.sort_values("fecha").tail(60)  # Últimos 60 sorteos (Día + Noche)
     
     df["dia_semana"] = df["fecha"].dt.dayofweek
     num_pos = 3 if juego == "Pega 3" else 2
     for i in range(num_pos):
         df[f"pos_{i+1}"] = df["numeros"].str[i].astype(int)
-        df[f"freq_reciente_pos_{i+1}"] = df[f"pos_{i+1}"].rolling(window=10, min_periods=1).apply(lambda x: Counter(x).most_common(1)[0][0], raw=True)
+        df[f"freq_reciente_pos_{i+1}"] = df[f"pos_{i+1}"].rolling(window=20, min_periods=1).apply(lambda x: Counter(x).most_common(1)[0][0], raw=True)
     return df
 
-# Entrenar modelo Random Forest (rápido y efectivo)
+# Entrenar modelo Random Forest
 def entrenar_modelo(df, posicion):
     X = df[["dia_semana", f"freq_reciente_pos_{posicion}"]]
     y = df[f"pos_{posicion}"]
-    modelo = RandomForestClassifier(n_estimators=50, random_state=42, max_depth=8)  # Menos estimadores
+    modelo = RandomForestClassifier(n_estimators=50, random_state=42, max_depth=8)
     modelo.fit(X, y)
     return modelo
 
-# Generar predicciones rápidas y certeras
-def analizar_pega_avanzado(sorteos, tipo_sorteo="Día", juego="Pega 3", num_combinaciones=10, estrategia="balanceada"):
-    sorteos_filtrados = [s for s in sorteos if s["tipo"] == tipo_sorteo and s["juego"] == juego]
-    if len(sorteos_filtrados) < 10:
-        print(f"No hay suficientes sorteos de {juego} {tipo_sorteo}.")
+# Generar 20 predicciones para todo el día
+def analizar_pega_avanzado(sorteos, juego, num_combinaciones=20, estrategia="balanceada"):
+    sorteos_filtrados = [s for s in sorteos if s["juego"] == juego]
+    if len(sorteos_filtrados) < 20:
+        print(f"No hay suficientes sorteos de {juego}.")
         return None, ""
 
     # Preparar datos y entrenar modelos
-    df = preparar_datos_ml(sorteos_filtrados, juego, tipo_sorteo)
+    df = preparar_datos_ml(sorteos_filtrados, juego)
     modelos = [entrenar_modelo(df, i+1) for i in range(3 if juego == "Pega 3" else 2)]
-    ultimos_sorteos = [s["numeros"] for s in sorteos_filtrados[-5:]]
+    ultimos_sorteos = [s["numeros"] for s in sorteos_filtrados[-10:]]  # Últimos 10 sorteos
 
-    # Frecuencias recientes para inicializar
+    # Frecuencias recientes
     posiciones = [df[f"pos_{i+1}"].tolist() for i in range(3 if juego == "Pega 3" else 2)]
-    freq_posiciones = [Counter(pos[-10:]) for pos in posiciones]  # Últimos 10 sorteos
-    top_posiciones = [[x[0] for x in freq.most_common(3)] for freq in freq_posiciones]  # Top 3 por posición
+    freq_posiciones = [Counter(pos[-20:]) for pos in posiciones]  # Últimos 20 sorteos
+    top_posiciones = [[x[0] for x in freq.most_common(3)] for freq in freq_posiciones]
 
-    # Generar combinaciones según estrategia
+    # Generar combinaciones
     combinaciones = set()
     if estrategia == "segura" or estrategia == "balanceada":
         while len(combinaciones) < num_combinaciones:
@@ -140,42 +139,33 @@ def analizar_pega_avanzado(sorteos, tipo_sorteo="Día", juego="Pega 3", num_comb
                 combinaciones.add(comb)
 
     combinaciones = list(combinaciones)
-    mensaje = f"🎲 *{juego} {tipo_sorteo} - Estrategia: {estrategia}*\n"
-    mensaje += "Predicciones:\n"
+    mensaje = f"🎲 *{juego} - Todo el Día (Estrategia: {estrategia})*\n"
+    mensaje += f"20 Predicciones válidas para Día y Noche:\n"
     for i, comb in enumerate(combinaciones, 1):
-        confianza = sum(modelo.predict_proba(df[["dia_semana", f"freq_reciente_pos_{j+1}"]].iloc[-1:])[0][int(comb[j])] 
-                        for j, modelo in enumerate(modelos))
+        try:
+            confianza = sum(modelo.predict_proba(df[["dia_semana", f"freq_reciente_pos_{j+1}"]].iloc[-1:])[0][int(comb[j])] 
+                            for j, modelo in enumerate(modelos))
+        except IndexError:  # Manejar casos donde un número no está en las clases del modelo
+            confianza = sum(modelo.predict_proba(df[["dia_semana", f"freq_reciente_pos_{j+1}"]].iloc[-1:])[0][min(int(comb[j]), len(modelo.classes_) - 1)] 
+                            for j, modelo in enumerate(modelos))
         mensaje += f"{i}. {comb} (Confianza: {confianza:.2f})\n"
     print(mensaje)
     return combinaciones, mensaje
 
-# Determinar el próximo día hábil con sorteos Día y Noche
-def determinar_siguiente_sorteo():
+# Determinar el próximo día hábil
+def determinar_proximo_dia():
     ahora = datetime.now(pytz.timezone("America/Puerto_Rico"))
-    hora = ahora.hour
     dia_semana = ahora.weekday()
     
     def proximo_dia_habil(fecha):
         nueva_fecha = fecha + timedelta(days=1)
-        while nueva_fecha.weekday() == 6:
+        while nueva_fecha.weekday() == 6:  # Saltar domingos
             nueva_fecha += timedelta(days=1)
         return nueva_fecha
 
-    if dia_semana == 6 or (dia_semana == 5 and hora >= 21):  # Domingo o sábado después de 9 PM
-        proximo_dia = proximo_dia_habil(ahora)
-        fecha_sorteo = proximo_dia.strftime("%m/%d/%y")
-        return [("Día", fecha_sorteo), ("Noche", fecha_sorteo)]
-    else:
-        if hora < 14:
-            fecha_sorteo = ahora.strftime("%m/%d/%y")
-            return [("Día", fecha_sorteo), ("Noche", fecha_sorteo)]
-        elif hora < 21:
-            fecha_sorteo = ahora.strftime("%m/%d/%y")
-            return [("Noche", fecha_sorteo)]
-        else:
-            proximo_dia = proximo_dia_habil(ahora)
-            fecha_sorteo = proximo_dia.strftime("%m/%d/%y")
-            return [("Día", fecha_sorteo), ("Noche", fecha_sorteo)]
+    if dia_semana == 6 or (dia_semana == 5 and ahora.hour >= 21):  # Domingo o sábado después de 9 PM
+        return proximo_dia_habil(ahora).strftime("%m/%d/%y")
+    return ahora.strftime("%m/%d/%y")
 
 # Función principal
 async def main():
@@ -190,21 +180,18 @@ async def main():
         return
 
     sorteos = guardar_datos_csv(sorteos)
-    sorteos_futuros = determinar_siguiente_sorteo()
+    fecha_sorteo = determinar_proximo_dia()
     mensaje_inicial = f"⏰ Hora actual (AST): {datetime.now(pytz.timezone('America/Puerto_Rico')).strftime('%H:%M')}\n"
-    mensaje_inicial += "Siguientes sorteos:\n"
-    for tipo, fecha in sorteos_futuros:
-        mensaje_inicial += f"- {tipo} ({fecha})\n"
+    mensaje_inicial += f"Predicciones para el {fecha_sorteo} (Día y Noche):\n"
     print(mensaje_inicial)
 
     estrategias = ["segura", "balanceada", "arriesgada"]
     mensajes_telegram = [mensaje_inicial]
     for juego in ["Pega 3", "Pega 2"]:
-        for tipo_sorteo, fecha_sorteo in sorteos_futuros:
-            for estrategia in estrategias:
-                combinaciones, mensaje = analizar_pega_avanzado(sorteos, tipo_sorteo, juego, estrategia=estrategia)
-                if combinaciones:
-                    mensajes_telegram.append(mensaje)
+        for estrategia in estrategias:
+            combinaciones, mensaje = analizar_pega_avanzado(sorteos, juego, estrategia=estrategia)
+            if combinaciones:
+                mensajes_telegram.append(mensaje)
 
     # Enviar mensajes a Telegram
     for msg in mensajes_telegram:
