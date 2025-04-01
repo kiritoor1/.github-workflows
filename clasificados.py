@@ -26,7 +26,7 @@ CHAT_ID = os.getenv("CHAT_ID", "-1002252436524")
 # Lista de pueblos deseados
 PUEBLOS = [
     "Ponce", "Juana Díaz", "Santa Isabel", "Coamo", 
-    "Guayama", "Peñuelas", "Guanica", "Guayanilla", "Yauco"
+    "Guayama", "Peñuelas", "Guanica", "Guayanilla", "Yauco", "Sabana Grande", "Hormigueros", "Lajas", "Cabo Rojo", "Yauco", "Mayag%FCez"
 ]
 
 HEADERS = {
