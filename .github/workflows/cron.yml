@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write         # Permiso para escribir en el repositorio (commits)
+      contents: write         # Permiso para escribir en el repositorio (commits
 
     steps:
       - name: Checkout el repositorio
