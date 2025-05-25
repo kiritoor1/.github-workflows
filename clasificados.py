@@ -11,7 +11,7 @@ import concurrent.futures
 import time
 
 # --------------------------
-# Configuración inicial
+# Configuración inicia
 # --------------------------
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
