@@ -15,7 +15,7 @@ import concurrent.futures
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 
-API_HISTORIAL = "https://ckrapps.tech/api_historial1.php"
+API_HISTORIAL = "https://pidecoamo.com/bot/api_historial1.php"
 BOT_TOKEN = os.getenv("BOT_TOKEN1")
 CHAT_ID = os.getenv("CHAT_ID", "-4745765501")
 
@@ -28,7 +28,7 @@ PUEBLOS = [
     "Toa+Alta",       # Toa Alta
     "Toa+Baja",       # Toa Baja
     "Carolina",
-    "Cata%F1o",      # Cataño
+    "Cata%F1o",       # Cataño
     "Trujillo+Alto",  # Trujillo Alto
     "Fajardo",
     "Cayey",
@@ -91,10 +91,10 @@ def guardar_historial_remoto(historial_set):
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDREListing.asp"
     params = {
-        'Category': '%',  # Cualquier tipo de propiedad
-        'LowPrice': '10000',  # Precio mínimo $10,000
-        'HighPrice': '125000',  # Precio máximo $125,000
-        'Bedrooms': '%',  # Cualquier cantidad de cuartos
+        'Category': '%',
+        'LowPrice': '10000',
+        'HighPrice': '125000',
+        'Bedrooms': '%',
         'Area': '',
         'Repo': 'Repo',
         'Opt': 'Opt',
@@ -104,6 +104,7 @@ def construir_url_busqueda(pueblo, offset=0):
     }
     if offset:
         params['offset'] = str(offset)
+
     query_string = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
     return f"{base}?RESPueblos={pueblo}&{query_string}"
 
@@ -146,11 +147,15 @@ def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
         print(f"🔍 Buscando propiedades en {pueblo} con offset {offset}... URL: {url_busqueda}")
         listados = obtener_listados_busqueda(url_busqueda, pueblo)
         print(f"   ✅ Encontradas {len(listados)} propiedades en {pueblo} (offset {offset})")
+
         if not listados:
             break
+
         todos_listados.extend(listados)
+
         if len(listados) < step:
             break
+
     return todos_listados
 
 def extraer_detalles(url):
@@ -182,6 +187,7 @@ def extraer_detalles(url):
             detalles['precio'] = precio_formateado
     except Exception as e:
         print(f"Error extrayendo detalles de {url}: {str(e)}")
+
     return detalles
 
 def limpiar_nombre_pueblo(pueblo):
@@ -209,6 +215,7 @@ def enviar_telegram(nuevos):
         mensaje_base += f"🏠 <b>{prop['titulo']}</b>\n"
         mensaje_base += f"📍 Pueblo: {limpiar_nombre_pueblo(prop['pueblo'])}\n"
         mensaje_base += f"🔗 <a href='{prop['link']}'>Ver propiedad</a>\n"
+
         if prop.get('cuartos'):
             mensaje_base += f"🛏 Cuartos: {prop['cuartos']}\n"
         if prop.get('banos'):
@@ -217,6 +224,7 @@ def enviar_telegram(nuevos):
             mensaje_base += f"💰 Precio: ${prop['precio']}\n"
         if prop.get('telefono'):
             mensaje_base += f"📞 Tel: {prop['telefono']}\n"
+
         mensaje_base += "\n"
 
     partes_mensaje = dividir_mensaje_en_partes(mensaje_base, 4096)
@@ -230,6 +238,7 @@ def enviar_telegram(nuevos):
                 'disable_web_page_preview': True
             }
         )
+
         if respuesta.status_code == 200:
             print(f"✅ Mensaje (parte {idx}/{len(partes_mensaje)}) enviado a Telegram.")
         else:
