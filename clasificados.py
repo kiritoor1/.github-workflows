@@ -11,22 +11,24 @@ import concurrent.futures
 import time
 
 # --------------------------
-# Configuración inicia
+# Configuración inicial
 # --------------------------
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BASE_URL = "https://www.clasificadosonline.com"
 
-# ======== RUTAS REMOTAS (en tu servidor) ========
-API_HISTORIAL = "https://ckrapps.tech/api_historial.php"  # Ajusta si cambia la ruta
+# ======== RUTA REMOTA EN TU SERVIDOR ========
+API_HISTORIAL = "https://pidecoamo.com/bot/api_historial.php"
 
 # ======== TOKEN Y CHAT_ID DESDE VARIABLES DE ENTORNO ========
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Se toma del entorno (sin exponerlo)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID", "-1002252436524")
 
 # Lista de pueblos deseados
 PUEBLOS = [
-    "Ponce", "Juana Díaz", "Santa Isabel", "Coamo", 
-    "Guayama", "Peñuelas", "Guanica", "Guayanilla", "Yauco", "Sabana Grande", "Hormigueros", "Lajas", "Cabo Rojo", "Yauco", "Mayag%FCez"
+    "Ponce", "Juana Díaz", "Santa Isabel", "Coamo",
+    "Guayama", "Peñuelas", "Guanica", "Guayanilla",
+    "Yauco", "Sabana Grande", "Hormigueros", "Lajas",
+    "Cabo Rojo", "Yauco", "Mayag%FCez"
 ]
 
 HEADERS = {
@@ -42,7 +44,7 @@ PATRONES = {
     'cuartos': re.compile(r"Cuartos[\s:\-]+(\d+)", re.IGNORECASE),
     'banos': re.compile(r"Baños[\s:\-]+([\d½¾¼]+(?:\s*[\d½¾¼/]+)?)", re.IGNORECASE),
     'telefono': re.compile(r'(\(\d{3}\)\s?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{10})'),
-    'precio': re.compile(r'\$(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)  # Patrón para capturar precios como "$120,000" o "$120000"
+    'precio': re.compile(r'\$(\d{1,3}(?:[.,]\d{3})*|\d+)', re.IGNORECASE)
 }
 
 # --------------------------
@@ -67,14 +69,9 @@ class TLSAdapter(HTTPAdapter):
 # ---------------------------------------------------------
 def cargar_historial_remoto(max_retries=3, delay=5):
     """
-    Hace un GET a https://ckrapps.tech/api_historial.php
+    Hace un GET a https://pidecoamo.com/bot/api_historial.php
     Debe retornar un JSON con {"enlaces": [...]}.
     Lo convertimos a un set() para manejar duplicados en Python.
-    Intenta varias veces en caso de error.
-    
-    Args:
-        max_retries (int): Número máximo de reintentos (default: 3).
-        delay (int): Segundos de espera entre reintentos (default: 5).
     """
     for attempt in range(max_retries):
         try:
@@ -85,8 +82,8 @@ def cargar_historial_remoto(max_retries=3, delay=5):
             print(f"Debug: Se cargaron {len(enlaces)} enlaces del historial remoto.")
             return set(enlaces)
         except Exception as e:
-            print(f"❌ Intento {attempt + 1}/{max_retries} fallido: {str(e)}")
-            if attempt < max_retries - 1:  # No esperar después del último intento
+            print(f"❌ Intento {attempt + 1}/{max_retries} fallido al cargar historial: {str(e)}")
+            if attempt < max_retries - 1:
                 time.sleep(delay)
             else:
                 print(f"❌ Todos los {max_retries} intentos fallaron. Devolviendo conjunto vacío.")
@@ -94,20 +91,20 @@ def cargar_historial_remoto(max_retries=3, delay=5):
 
 def guardar_historial_remoto(historial_set):
     """
-    Hace un POST a https://ckrapps.tech/api_historial.php con {"enlaces": [...]}
-    sobrescribiendo el historial remoto.
+    Hace un POST a https://pidecoamo.com/bot/api_historial.php
+    con {"enlaces": [...]} sobrescribiendo el historial remoto.
     """
     data = {"enlaces": list(historial_set)}
     try:
         resp = requests.post(API_HISTORIAL, json=data, timeout=30)
         resp.raise_for_status()
         print("✅ Historial remoto actualizado correctamente.")
-        print("Debug:", resp.text)
+        print("Debug respuesta servidor:", resp.text)
     except Exception as e:
         print(f"❌ Error al guardar historial remoto: {str(e)}")
 
 # ---------------------------------------------------------
-# Resto de funciones para scraping
+# Funciones de scraping
 # ---------------------------------------------------------
 def construir_url_busqueda(pueblo, offset=0):
     base = "https://www.clasificadosonline.com/UDREListing.asp"
@@ -135,7 +132,7 @@ def obtener_listados_busqueda(url, pueblo):
         response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         response.raise_for_status()
     except Exception as e:
-        print(f"Error obteniendo listados para {pueblo} (url={url}): {str(e)}")
+        print(f"❌ Error obteniendo listados para {pueblo} (url={url}): {str(e)}")
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -143,7 +140,7 @@ def obtener_listados_busqueda(url, pueblo):
 
     bloques = soup.find_all("div", class_="dv-classified-row dv-classified-row-v2")
     if not bloques:
-        print(f"No se encontraron bloques de listados en esta página para {pueblo}.")
+        print(f"⚠️ No se encontraron bloques de listados en esta página para {pueblo}.")
         return []
 
     for bloque in bloques:
@@ -151,37 +148,50 @@ def obtener_listados_busqueda(url, pueblo):
         if link_tag:
             enlace = urllib.parse.urljoin(BASE_URL, link_tag['href'])
             titulo = link_tag.get_text(strip=True)
-            # Evitamos duplicados en la misma búsqueda
+
             if enlace not in [r['link'] for r in resultados]:
                 resultados.append({
                     'titulo': titulo,
                     'link': enlace,
                     'pueblo': pueblo
                 })
+
     return resultados
 
 def obtener_listados_por_pueblo(pueblo, max_offset=150, step=30):
     todos_listados = []
+
     for offset in range(0, max_offset + 1, step):
         url_busqueda = construir_url_busqueda(pueblo, offset)
         print(f"🔍 Buscando casas en {pueblo} con offset {offset}...")
+
         listados = obtener_listados_busqueda(url_busqueda, pueblo)
         print(f"   ✅ Encontradas {len(listados)} propiedades en {pueblo} (offset {offset})")
+
         if not listados:
             break
+
         todos_listados.extend(listados)
+
         if len(listados) < step:
             break
+
     return todos_listados
 
 def extraer_detalles(url):
-    detalles = {'telefono': None, 'cuartos': None, 'banos': None, 'precio': None}
+    detalles = {
+        'telefono': None,
+        'cuartos': None,
+        'banos': None,
+        'precio': None
+    }
+
     try:
         session = requests.Session()
         session.mount("https://", TLSAdapter())
         response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         response.raise_for_status()
-        # Usamos BeautifulSoup para obtener el texto limpio
+
         soup = BeautifulSoup(response.text, 'html.parser')
         contenido = soup.get_text()
 
@@ -199,27 +209,31 @@ def extraer_detalles(url):
 
         match_precio = PATRONES['precio'].search(contenido)
         if match_precio:
-            # Normalizamos el precio, eliminando comas y asegurándonos de que sea un formato limpio
             precio = match_precio.group(1).replace(',', '').replace('.', '')
-            # Formateamos el precio con comas para separar los miles
             precio_formateado = "{:,}".format(int(precio))
             detalles['precio'] = precio_formateado
+
     except Exception as e:
-        print(f"Error extrayendo detalles de {url}: {str(e)}")
+        print(f"❌ Error extrayendo detalles de {url}: {str(e)}")
+
     return detalles
+
 # ---------------------------------------------------------
-# Dividir mensaje en caso de exceder 4096 caracteres (Telegram)
+# Dividir mensaje en partes si excede límite de Telegram
 # ---------------------------------------------------------
 def dividir_mensaje_en_partes(mensaje, limite=4096):
     partes = []
+
     while len(mensaje) > limite:
         corte = mensaje[:limite].rfind('\n')
         if corte == -1:
             corte = limite
         partes.append(mensaje[:corte])
         mensaje = mensaje[corte:].strip()
+
     if mensaje:
         partes.append(mensaje)
+
     return partes
 
 def enviar_telegram(nuevos):
@@ -228,63 +242,69 @@ def enviar_telegram(nuevos):
         return
 
     mensaje_base = "<b>🚨 Nuevas Propiedades Encontradas</b>\n\n"
+
     for prop in nuevos:
         mensaje_base += f"🏠 <b>{prop['titulo']}</b>\n"
         mensaje_base += f"📍 Pueblo: {prop['pueblo']}\n"
         mensaje_base += f"🔗 <a href='{prop['link']}'>Ver propiedad</a>\n"
+
         if prop.get('cuartos'):
             mensaje_base += f"🛏 Cuartos: {prop['cuartos']}\n"
         if prop.get('banos'):
             mensaje_base += f"🚿 Baños: {prop['banos']}\n"
         if prop.get('precio'):
-            # Aquí agregamos el símbolo $ antes del precio formateado
             mensaje_base += f"💰 Precio: ${prop['precio']}\n"
         if prop.get('telefono'):
             mensaje_base += f"📞 Tel: {prop['telefono']}\n"
+
         mensaje_base += "\n"
 
     partes_mensaje = dividir_mensaje_en_partes(mensaje_base, 4096)
+
     for idx, parte in enumerate(partes_mensaje, 1):
-        respuesta = requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            data={
-                'chat_id': CHAT_ID,
-                'text': parte,
-                'parse_mode': 'HTML',
-                'disable_web_page_preview': True
-            }
-        )
-        if respuesta.status_code == 200:
-            print(f"✅ Mensaje (parte {idx}/{len(partes_mensaje)}) enviado a Telegram.")
-        else:
-            print(f"❌ Error Telegram: {respuesta.text}")
+        try:
+            respuesta = requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                data={
+                    'chat_id': CHAT_ID,
+                    'text': parte,
+                    'parse_mode': 'HTML',
+                    'disable_web_page_preview': True
+                },
+                timeout=30
+            )
+
+            if respuesta.status_code == 200:
+                print(f"✅ Mensaje (parte {idx}/{len(partes_mensaje)}) enviado a Telegram.")
+            else:
+                print(f"❌ Error Telegram: {respuesta.text}")
+
+        except Exception as e:
+            print(f"❌ Excepción enviando a Telegram: {str(e)}")
 
 # ---------------------------------------------------------
-# Función principal (ya sin listings.txt local)
+# Función principal
 # ---------------------------------------------------------
 def main():
-    # 1. Cargar historial desde tu servidor PHP
     historial = cargar_historial_remoto()
     print(f"Debug: Antes de procesar, historial remoto tiene {len(historial)} enlaces.")
 
     nuevos = []
 
-    # 2. Recorrer los pueblos y obtener listados
     for pueblo in PUEBLOS:
         print(f"=== Buscando en {pueblo} ===")
         listados_pueblo = obtener_listados_por_pueblo(pueblo, max_offset=150, step=30)
         print(f"   Total encontrados en {pueblo}: {len(listados_pueblo)}")
 
-        # Filtrar los que no están en el historial
         listados_filtrados = [lst for lst in listados_pueblo if lst['link'] not in historial]
         print(f"   -> Nuevos en {pueblo}: {len(listados_filtrados)}")
 
-        # 3. Extraer detalles en paralelo
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_listado = {
                 executor.submit(extraer_detalles, lst['link']): lst
                 for lst in listados_filtrados
             }
+
             for future in concurrent.futures.as_completed(future_to_listado):
                 listado = future_to_listado[future]
                 try:
@@ -292,19 +312,15 @@ def main():
                     listado.update(detalles)
                     nuevos.append(listado)
                 except Exception as exc:
-                    print(f"Error procesando {listado['link']}: {exc}")
+                    print(f"❌ Error procesando {listado['link']}: {exc}")
 
-    # 4. Si hay propiedades nuevas, actualizar historial remoto y notificar
     if nuevos:
         print(f"🎉 Se encontraron {len(nuevos)} nuevas propiedades en total.")
-        # Agregar los nuevos al historial
+
         for prop in nuevos:
             historial.add(prop['link'])
 
-        # Guardar historial REMOTO
         guardar_historial_remoto(historial)
-
-        # Enviar notificaciones a Telegram
         enviar_telegram(nuevos)
     else:
         print("🤷 No se encontraron nuevas propiedades en ninguno de los pueblos.")
